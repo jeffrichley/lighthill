@@ -1,9 +1,13 @@
 import math
+
 import torch
-from lighthill.config import RobotHydroConfig, LinkConfig, AddedMassSpec
+
 from lighthill.coefficients import (
-    resolve_coefficients, cylinder_added_mass, sphere_added_mass,
+    cylinder_added_mass,
+    resolve_coefficients,
+    sphere_added_mass,
 )
+from lighthill.config import AddedMassSpec, LinkConfig, RobotHydroConfig
 
 
 def _link(**kw):

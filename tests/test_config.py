@@ -1,6 +1,8 @@
 import textwrap
+
 import pytest
-from lighthill.config import RobotHydroConfig, ConfigError
+
+from lighthill.config import ConfigError, RobotHydroConfig
 
 
 def _write(tmp_path, body):

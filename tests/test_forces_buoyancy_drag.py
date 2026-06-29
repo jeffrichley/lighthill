@@ -1,6 +1,7 @@
 import torch
+
+from lighthill.constants import GRAVITY, RHO_SEAWATER
 from lighthill.forces import buoyancy_wrench, drag_wrench
-from lighthill.constants import RHO_SEAWATER, GRAVITY
 
 IDQUAT = torch.tensor([1.0, 0.0, 0.0, 0.0])
 

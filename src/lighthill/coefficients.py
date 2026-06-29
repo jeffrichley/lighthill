@@ -65,14 +65,14 @@ def _resolve_added_mass(spec: AddedMassSpec, density: float, dtype: torch.dtype)
 def resolve_coefficients(config: RobotHydroConfig,
                          dtype: torch.dtype = torch.float32) -> ResolvedCoefficients:
     links: tuple[LinkConfig, ...] = config.links
-    added = torch.stack([_resolve_added_mass(l.added_mass, config.density, dtype) for l in links])
-    lin = torch.stack([_to_6x6(l.linear_damping, dtype) for l in links])
-    quad = torch.stack([_to_6x6(l.quadratic_damping, dtype) for l in links])
-    vol = torch.tensor([l.volume for l in links], dtype=dtype)
-    cob = torch.tensor([l.center_of_buoyancy for l in links], dtype=dtype)
-    neutral = torch.tensor([l.neutrally_buoyant for l in links], dtype=torch.bool)
+    added = torch.stack([_resolve_added_mass(link.added_mass, config.density, dtype) for link in links])
+    lin = torch.stack([_to_6x6(link.linear_damping, dtype) for link in links])
+    quad = torch.stack([_to_6x6(link.quadratic_damping, dtype) for link in links])
+    vol = torch.tensor([link.volume for link in links], dtype=dtype)
+    cob = torch.tensor([link.center_of_buoyancy for link in links], dtype=dtype)
+    neutral = torch.tensor([link.neutrally_buoyant for link in links], dtype=torch.bool)
     return ResolvedCoefficients(
         added_mass=added, linear_damping=lin, quadratic_damping=quad,
         volume=vol, center_of_buoyancy=cob, neutrally_buoyant=neutral,
-        density=config.density, names=tuple(l.name for l in links),
+        density=config.density, names=tuple(link.name for link in links),
     )
