@@ -1,0 +1,45 @@
+[project]
+name = "lighthill"
+version = "0.0.1"
+description = "GPU-vectorized per-link hydrodynamics for articulated underwater robots in NVIDIA Isaac Lab"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Jeff Richley", email = "jeffrichley@gmail.com" },
+]
+keywords = [
+    "isaac-lab",
+    "isaac-sim",
+    "hydrodynamics",
+    "underwater-robotics",
+    "marine-robotics",
+    "reinforcement-learning",
+    "uvms",
+    "auv",
+    "rov",
+    "simulation",
+    "gpu",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/jeffrichley/lighthill"
+Repository = "https://github.com/jeffrichley/lighthill"
+Issues = "https://github.com/jeffrichley/lighthill/issues"
+
+[build-system]
+requires = ["uv_build>=0.11.22,<0.12.0"]
+build-backend = "uv_build"
