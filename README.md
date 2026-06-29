@@ -27,6 +27,12 @@ staying GPU-vectorized across thousands of parallel environments for modern RL.
 It fills a real gap: fast underwater sims are single-body; multi-body underwater sims are
 too slow for large-scale RL.
 
+## Design
+
+The force model, architecture, validation gates, and scope are specified in
+[`docs/design/2026-06-28-hydrodynamics-design.md`](docs/design/2026-06-28-hydrodynamics-design.md).
+The implementation plan is generated from that spec.
+
 ## Status
 
 | | |
