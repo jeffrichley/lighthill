@@ -43,3 +43,129 @@ Issues = "https://github.com/jeffrichley/lighthill/issues"
 [build-system]
 requires = ["uv_build>=0.11.22,<0.12.0"]
 build-backend = "uv_build"
+
+# ---------------------------------------------------------------------------
+# Dev toolchain. Mirrors the jeffrichley/foreman quality stack, trimmed to a
+# single-package library (no workspace, no Docker, no Postgres, no import
+# contracts). Install with: ``uv sync``. Run the gate with: ``just check``.
+# ---------------------------------------------------------------------------
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.14",
+    "mypy>=1.11",
+    # gitleaks pre-commit driver (.pre-commit-config.yaml).
+    "pre-commit>=4.0",
+    # Coverage measurement (consumed by pytest addopts + the CI diff-cover gate).
+    "pytest-cov>=5.0",
+    # Better assertion-failure diffs.
+    "pytest-clarity>=1.0",
+    # 60s per-test wallclock cap. ``thread`` method is required for
+    # pytest-xdist worker compatibility (see [tool.pytest.ini_options]).
+    "pytest-timeout>=2.3",
+    # Property-based testing.
+    "hypothesis>=6.100",
+    # Parallel test execution. ``--dist=loadscope`` keeps a module's tests on
+    # one worker so module-scoped fixtures aren't duplicated.
+    "pytest-xdist>=3.6",
+    # Shuffles test order each run to surface inter-test ordering bugs.
+    "pytest-randomly>=3.15",
+    # Patch-coverage gate on PRs (consumed by .github/workflows/ci.yml).
+    "diff-cover>=9.0",
+    # Dead-code finder. Run via ``uv run vulture src``. Not in the gate.
+    "vulture>=2.13",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+extend-exclude = [
+    ".venv",
+    ".tmp",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "I",
+    "UP",
+    "B",
+    "RUF100",
+    # TODO discipline: a TODO must reference a tracking issue (a digit in the
+    # body satisfies TD003). Bare ``# TODO:`` comments rot.
+    "TD003",
+]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.10"
+files = [
+    "src",
+]
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+# lighthill lazy-imports heavy GPU/sim deps (torch, Isaac Lab/Sim) that aren't
+# present in the lint/test environment. Keep the rest of the package
+# type-checkable without them installed.
+[[tool.mypy.overrides]]
+module = [
+    "torch",
+    "torch.*",
+    "isaaclab",
+    "isaaclab.*",
+    "isaacsim",
+    "isaacsim.*",
+    "omni",
+    "omni.*",
+]
+ignore_missing_imports = true
+
+[tool.vulture]
+# Dead-code finder. Run via: ``uv run vulture src``. Tests are excluded
+# (pytest discovers fixtures/params by name, not import, so vulture would
+# flag them all). ``min_confidence = 80`` catches structurally-dead code
+# without the dynamic-access false positives that swamp lower thresholds.
+min_confidence = 80
+paths = ["src"]
+exclude = [
+    "tests",
+    "**/__pycache__",
+    ".venv",
+    ".tmp",
+]
+ignore_names = [
+    # Signal-handler API conventions (signal.signal callback signature).
+    "signum",
+    "frame",
+    # Duck-typed stub method **kwargs kept for signature parity.
+    "kwargs",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+# 60s per-test cap stops a hung test from burning the runner. ``thread``
+# method works with pytest-xdist worker processes; ``signal`` does not.
+timeout = 60
+timeout_method = "thread"
+addopts = "--import-mode=importlib --cov=src/lighthill --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=78 -n auto --dist=loadscope"
+
+# Custom marker pattern. Uncomment when you have tests that need real GPU /
+# Isaac Sim and should be opt-in rather than run in CI:
+#
+# markers = [
+#     "real_sim: requires a real Isaac Sim + GPU. Skipped without LIGHTHILL_REAL_SIM_OK=1.",
+# ]
