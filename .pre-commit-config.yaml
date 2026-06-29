@@ -1,0 +1,29 @@
+# Pre-commit hooks for lighthill. Mirrors the foreman setup.
+#
+# Install once per clone:
+#   uv run pre-commit install --hook-type pre-commit --hook-type pre-push
+#
+# Run on demand:
+#   uv run pre-commit run --all-files
+#   uv run pre-commit run gitleaks --all-files
+
+repos:
+  # Secret scanner — runs at COMMIT against staged content.
+  # https://github.com/gitleaks/gitleaks
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  # Local repo hooks. `just check` runs at PUSH (the full lint + type +
+  # test gate, mirroring CI) so a broken push is caught before it leaves
+  # the machine.
+  - repo: local
+    hooks:
+      - id: just-check
+        name: just check (lint + type + test gate)
+        entry: just check
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        # The gate is project-wide, not per-file.
