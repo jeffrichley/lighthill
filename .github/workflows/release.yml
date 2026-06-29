@@ -1,0 +1,76 @@
+name: release
+
+on:
+  release:
+    types: [published]
+  # workflow_dispatch baked in from day 1 — lets us rebuild/publish a tag by
+  # hand if the release.published auto-fire ever misses.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build artifacts for (e.g. v0.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist + wheel
+        run: uv build --out-dir dist/
+
+      - name: List built artifacts
+        run: ls -la dist/
+
+      - name: Upload artifacts to GH Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          gh release upload "$TAG" dist/*.whl dist/*.tar.gz --clobber
+
+      - name: Upload dist as workflow artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: dist
+          path: dist/*
+          retention-days: 1
+          if-no-files-found: error
+
+  # Trusted Publisher (OIDC) — no PyPI token secret needed. PyPI verifies this
+  # workflow's identity via GitHub OIDC against the Pending Publisher binding at:
+  #   https://pypi.org/manage/account/publishing/
+  # Binding shape: owner=jeffrichley, repo=lighthill, workflow=release.yml,
+  # environment=pypi.
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download dist from workflow artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: dist
+          path: dist/
+
+      - name: List dist before publish
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
