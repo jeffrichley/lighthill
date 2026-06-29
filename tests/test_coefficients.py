@@ -60,3 +60,10 @@ def test_stacks_multiple_links():
     assert rc.added_mass.shape == (3, 6, 6)
     assert rc.names == ("a", "b", "c")
     assert rc.volume.shape == (3,)
+
+
+def test_zero_length_cylinder_resolves_to_zero_added_mass():
+    cfg = RobotHydroConfig(links=(_link(
+        added_mass=AddedMassSpec(kind="cylinder", radius=0.02, length=0.0, axis="z")),))
+    rc = resolve_coefficients(cfg)
+    assert torch.allclose(rc.added_mass[0], torch.zeros(6, 6))

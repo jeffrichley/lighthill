@@ -52,7 +52,7 @@ def _resolve_added_mass(spec: AddedMassSpec, density: float, dtype: torch.dtype)
         assert spec.matrix is not None
         return _to_6x6(spec.matrix, dtype)
     if spec.kind == "cylinder":
-        assert spec.radius and spec.length and spec.axis
+        assert spec.radius is not None and spec.length is not None and spec.axis is not None
         return cylinder_added_mass(spec.radius, spec.length, spec.axis, density, dtype)
     if spec.kind == "sphere":
         assert spec.radius is not None
