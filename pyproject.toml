@@ -33,7 +33,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Physics",
 ]
-dependencies = []
+dependencies = [
+    "torch>=2.2",
+    "pyyaml>=6.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/jeffrichley/lighthill"
@@ -74,6 +77,8 @@ dev = [
     "diff-cover>=9.0",
     # Dead-code finder. Run via ``uv run vulture src``. Not in the gate.
     "vulture>=2.13",
+    # Type stubs for PyYAML (torch stubs are bundled with torch itself).
+    "types-PyYAML>=6.0",
 ]
 
 [tool.ruff]
