@@ -40,3 +40,12 @@ def _run_scenario(script: str) -> str:
 def test_in_sim_scenario_matches_cpu_reference(script: str) -> None:
     out = _run_scenario(script)
     assert "PASS" in out and "FAIL" not in out, f"{script} did not PASS:\n{out[-2000:]}"
+
+
+@real_sim
+def test_arm_swing_base_reaction_matches_featherstone_reference() -> None:
+    """The UVMS coupling gate: a commanded arm swing on a free base must produce the
+    base reaction the floating-base Featherstone reference predicts. A FAIL means the
+    coupling is wrong -- do NOT loosen the tolerance (see reference_featherstone.md)."""
+    out = _run_scenario("arm_swing_reaction.py")
+    assert "PASS" in out and "FAIL" not in out, f"arm_swing_reaction did not PASS:\n{out[-2000:]}"
