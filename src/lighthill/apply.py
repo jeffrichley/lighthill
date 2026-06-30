@@ -20,30 +20,37 @@ class UnderwaterHydrodynamics:
         self.view = view
         self.coeffs = coeffs
         self.current_field = current or CurrentField()
-        self.routing = split_added_mass(coeffs.added_mass)  # [B,...]
 
-        # Derive the device from the view's own state tensors.  The
+        # Derive the device from the view's own state tensors first.  The
         # ArticulationView Protocol guarantees body_states() returns real tensors
         # on the view's device, making this the canonical, Protocol-safe source.
+        # resolve_coefficients() builds the coefficient tensors on CPU, so every
+        # coeff tensor must be moved onto the view's device here or the GPU hot
+        # path mixes CPU coeffs with CUDA state (.to(dev) is a no-op on CPU).
         _dev = view.body_states()[0].device
         self._device = _dev
+
+        self.routing = split_added_mass(coeffs.added_mass.to(_dev))  # [B,...] on device
 
         self._filter = AccelerationFilter(shape=(view.num_envs, view.num_bodies), alpha=alpha)
         self._current_world = torch.zeros(view.num_envs, 3, device=_dev)
 
-        # Pre-expand per-body coefficients to [E,B,...] so torch.cross and other
-        # ops that require matching number of dims work without reshaping call sites.
+        # Pre-expand per-body coefficients to [E,B,...] (on the view's device) so
+        # torch.cross and other ops that require matching number of dims work
+        # without reshaping call sites.
         E, B = view.num_envs, view.num_bodies
-        self._volume = coeffs.volume.unsqueeze(0).expand(E, B)                    # [E,B]
-        self._cob = coeffs.center_of_buoyancy.unsqueeze(0).expand(E, B, 3)        # [E,B,3]
-        self._lin_damp = coeffs.linear_damping.unsqueeze(0).expand(E, B, 6, 6)    # [E,B,6,6]
-        self._quad_damp = coeffs.quadratic_damping.unsqueeze(0).expand(E, B, 6, 6) # [E,B,6,6]
-        self._added_mass = coeffs.added_mass.unsqueeze(0).expand(E, B, 6, 6)      # [E,B,6,6]
-        self._residual = self.routing.residual.unsqueeze(0).expand(E, B, 6, 6)    # [E,B,6,6]
+        self._volume = coeffs.volume.to(_dev).unsqueeze(0).expand(E, B)                     # [E,B]
+        self._cob = coeffs.center_of_buoyancy.to(_dev).unsqueeze(0).expand(E, B, 3)         # [E,B,3]
+        self._lin_damp = coeffs.linear_damping.to(_dev).unsqueeze(0).expand(E, B, 6, 6)     # [E,B,6,6]
+        self._quad_damp = coeffs.quadratic_damping.to(_dev).unsqueeze(0).expand(E, B, 6, 6)  # [E,B,6,6]
+        self._added_mass = coeffs.added_mass.to(_dev).unsqueeze(0).expand(E, B, 6, 6)       # [E,B,6,6]
+        self._residual = self.routing.residual.unsqueeze(0).expand(E, B, 6, 6)             # [E,B,6,6] (already on _dev)
 
-        # augment inertias once (broadcast per-body routing across envs)
-        mass0 = view.mass
-        inertia0 = view.inertia_diag
+        # augment inertias once (broadcast per-body routing across envs).
+        # Isaac exposes default_mass/default_inertia as CPU tensors even on a CUDA
+        # sim, so coerce to the view's device for consistency with routing.
+        mass0 = view.mass.to(_dev)
+        inertia0 = view.inertia_diag.to(_dev)
         m_eff, i_eff = effective_inertia(
             mass0, inertia0,
             _broadcast_routing(self.routing, E),
