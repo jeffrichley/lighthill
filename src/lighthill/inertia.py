@@ -22,7 +22,7 @@ def split_added_mass(added_mass: Tensor) -> AddedMassRouting:
     mass_bump = lin_diag.min(dim=-1).values  # isotropic safe part
     inertia_bump = ang_diag.clone()
     residual = added_mass.clone()
-    idx = torch.arange(6)
+    idx = torch.arange(6, device=added_mass.device)
     # zero the angular diagonal (moved to inertia) and subtract the isotropic mass on linear diagonal
     residual[:, idx, idx] = 0.0
     # restore the anisotropic linear remainder on the linear diagonal
