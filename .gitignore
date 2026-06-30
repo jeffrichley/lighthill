@@ -19,3 +19,4 @@ coverage.xml
 
 # subagent-driven-development scratch (briefs, reports, diffs, progress ledger)
 .superpowers/
+_armswing_run.json
