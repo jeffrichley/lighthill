@@ -78,7 +78,14 @@ Featherstone + per-link-hydro reference; this is the UVMS coupling claim.
 | Scenario | Metric | Result | Tolerance |
 |---|---|---|---|
 | drag-terminal (in-sim vs CPU ref) | surge terminal velocity | u_sim 0.95260 vs u_ref 0.94871, **0.41%** | < 5% |
+| free-decay (in-sim vs CPU ref) | surge-decay trajectory | max **0.02%** (0.084/0.030/0.013/0.006) | < 5% |
+| restoring (in-sim vs CPU ref) | roll(t) oscillation + damping | max **0.07°** over a 30°→0 decay | < 3° |
+| arm-swing reaction (the gate) | base reaction vs Featherstone ref | _todo_ (Task 6) | _todo_ |
 | CPU core gate | unit tests / coverage | 57 passed, 90.8% | ≥ 78% |
+
+The three single-body scenarios jointly certify translation (drag, steady + transient) and
+rotation (restoring couple + angular drag) against the analytical reference; the arm-swing
+gate (Task 6) certifies the multi-body coupling that is the headline claim.
 
 (Closed-form anchor for the CPU ref itself, from Plan A: terminal velocity sim 1.118032 vs
 √(F/Dq) 1.118034.)
