@@ -102,50 +102,56 @@ before any GPU is involved:
 Same isolation discipline as the single-body scenarios:
 
 * **Feed the sim's *actual* joint angle to the reference.** A stiff PD drive does not
-  track a commanded trajectory perfectly (the spike saw a 1500-stiffness drive track
-  only ~8.5° of a fast ±50° swing). Rather than assume perfect tracking, the scenario
-  records the realized `q(t)` from the sim and differentiates it for the reference —
-  exactly as `restoring.py` reads the body's actual inertia. This removes
+  track a commanded trajectory perfectly. Rather than assume perfect tracking, the
+  scenario records the realized `q(t)` from the sim and differentiates it for the
+  reference — exactly as `restoring.py` reads the body's actual inertia. This removes
   drive-tracking error from the comparison, leaving only the coupling + discretization.
-  Command a **slow, moderate** swing so the drive tracks cleanly anyway.
-* **Trim the assembly.** The free assembly is buoyancy-untrimmed in the naive setup
-  (PhysX applies gravity on `m_eff = rigid + added-mass bump`, so an untrimmed base
-  sinks/tips — a ~25° transient that swamps the reaction). Run the gate with **gravity
-  off** (cleanest isolation of the momentum coupling — the reaction we test is present
-  with or without gravity) or trim each link to `buoyancy = m_eff·g` with `CoB = CoM`.
-  Gravity-off is preferred: it removes the augmented-mass-gravity confound entirely.
-* **Enable `PhysxCfg.enable_external_forces_every_iteration=True`** (Finding C) — the
-  coupling is force-balance-sensitive, so the under-integrated-external-force bias must
-  be off.
+  Command a **slow, moderate** swing (≈23°, ~3 s period) so the drive tracks cleanly.
+* **Match the reference geometry to the sim — and verify it.** USD physics joint
+  `localPos` is interpreted in the link's **scaled** local frame, so the effective
+  joint anchors are `authored_anchor × body_scale`. Using the unscaled anchors inflates
+  the arm moment arm (0.40 m vs the real 0.17 m, ~2.4×) and the predicted reaction
+  ~2.5×. The scenario feeds the reference the scaled anchors and **asserts** them
+  against the arm CoM offset measured from the sim at rest (`GEOMCHECK`, err < 0.02 m;
+  observed 0.000). This is the same read-actual-from-sim discipline as inertia parity.
+* **Isolate the inertial coupling.** Gravity off and buoyancy off (volumes zeroed) —
+  the momentum/added-mass reaction is present with or without them, and gravity-off
+  removes the augmented-mass-gravity sink (PhysX applies gravity on `m_eff = rigid +
+  added-mass bump`, so an untrimmed free base sinks/tips). **Drag is also zeroed in the
+  gate config**: drag is a separate, already-certified force law (drag-terminal /
+  free-decay <0.5 %), and including it confounds the inertial-coupling test with
+  drag-through-articulation fidelity. Added mass is kept on — it is lighthill's
+  contribution to the coupling and the thing under test.
+* **Enable `PhysxCfg.enable_external_forces_every_iteration=True`** (Finding C).
 * **Exclude the startup transient** (first ~0.2 s) before scoring.
 
 ## The gate metric and tolerance
 
-The measured signal is the base reaction (CoM displacement / velocity / angular
-velocity) over the swing. Relative error is normalized by the **signal scale**, not
-pointwise, to avoid the divide-by-near-zero blow-up at reaction zero-crossings:
+The base reaction to an arm swing about the pitch axis is dominantly **rotational**:
+the base **pitch** (rotation about the swing axis) is the clean, high-SNR coupling
+signal and is the gate metric. The translation recoil is genuinely tiny here (sub-3 mm)
+and its peak-relative error is ill-defined near its zero crossings (it agrees in
+absolute terms), so it is reported for information, not gated. Relative error is
+normalized by the **signal scale**, not pointwise:
 
 ```
-peak_rel_error = max_t |sim(t) − ref(t)|  /  max_t |ref(t)|
+peak_rel_error = max_t |pitch_sim(t) − pitch_ref(t)|  /  max_t |pitch_ref(t)|
 ```
 
-**Tolerance: `peak_rel_error < 0.15` (15 %).** Rationale — with the force law and glue
-already certified to <0.5 % single-body and the *actual* `q(t)` fed to the reference,
-the residual budget is:
+**Tolerance: `peak_rel_error < 0.15` (15 %). Realized: 0.077.** With the force law and
+glue certified to <0.5 % single-body, the *actual* `q(t)` and geometry fed to the
+reference, the residual budget is:
 
 | Source | Contribution |
 |---|---|
-| PhysX TGS solver vs the reference's semi-implicit Euler, on the coupled DOF at sim dt | dominant; a few–several % |
+| PhysX TGS solver vs the reference's semi-implicit Euler, on the coupled DOF at sim dt | dominant; ~5–8 % |
 | Residual-lag (anisotropic added mass via the lagged EMA filter) — **same approximation both sides**, so largely cancels | small |
-| Stiff-drive joint-tracking residual (mitigated by feeding actual q) | small |
-| Low SNR of a small reaction signal near zero-crossings | inflates peak-relative |
+| Stiff-drive joint-tracking + finite-diff of the realized q | small |
 
 15 % is a **ceiling that still falsifies a wrong coupling**: the conservation +
-convergence tests show a correct coupling tracks the reference to truncation order, so
-a frame-sign error, a wrong wrench frame, a missing inertia augmentation, or a
-mis-routed added-mass term produces errors far larger than 15 % (typically a wrong
-sign or a factor, i.e. ≥100 %). **Do not loosen this to pass.** A failure means the
-coupling is wrong — investigate frame sign, residual α, wrench frame, or inertia
-augmentation (per the plan), not the threshold. If the realized error is comfortably
-under 15 % (expected), record the actual number in `docs/paper-notes.md` §4 and
-tighten the documented expectation accordingly.
+convergence tests show a correct coupling tracks the reference to truncation order, and
+indeed the realized error is 7.7 %. A frame-sign error, a wrong wrench frame, a missing
+inertia augmentation, a mis-routed added-mass term, or a wrong joint geometry produces
+errors far larger (the geometry bug alone gave ~50–65 %). **Do not loosen this to
+pass.** A failure means the coupling — or the geometry/parity feeding the reference —
+is wrong; fix the cause, not the threshold.

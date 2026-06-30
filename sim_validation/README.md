@@ -24,7 +24,7 @@ Each script exposes `run(...) -> dict` and prints a `RESULT:: ... PASS|FAIL` lin
 | `drag_terminal.py` | translational drag, steady state | surge terminal velocity vs CPU ref | 0.41% | < 5% |
 | `free_decay.py` | translational drag, transient | surge-decay trajectory vs CPU ref | 0.02% | < 5% |
 | `restoring.py` | buoyant restoring couple + roll drag | roll(t) vs CPU ref | 0.07° | < 3° |
-| `arm_swing_reaction.py` | UVMS vehicle↔arm coupling (the gate) | base reaction vs Featherstone ref | _todo_ | _todo_ |
+| `arm_swing_reaction.py` | UVMS vehicle↔arm coupling (the gate) | base pitch reaction vs Featherstone ref | 7.7% | < 15% |
 
 ## Harness conventions (why each scenario is set up as it is)
 
@@ -40,6 +40,12 @@ Each script exposes `run(...) -> dict` and prints a `RESULT:: ... PASS|FAIL` lin
 - **Inertia parity.** `restoring`'s oscillation frequency depends on rotational inertia, so it
   reads the body's actual inertia from Isaac and feeds it to the CPU reference for a fair
   comparison.
+- **The coupling gate (`arm_swing_reaction`) isolates the inertial coupling.** It is the only
+  multi-body scenario (a free base + one revolute-jointed arm, vs the Featherstone reference in
+  `reference_featherstone.md`). It feeds the reference the sim's *actual* realized `q(t)`,
+  masses/inertias, and joint geometry (USD `localPos` is scaled by body-scale — verified by a
+  `GEOMCHECK` against the measured arm offset), runs gravity/buoyancy/**drag** off to isolate the
+  added-mass + rigid coupling, and gates on the base **pitch** reaction (the high-SNR signal).
 
 See `docs/isaac-api-findings.md` for the pinned Isaac API and `docs/paper-notes.md` for the
 findings these scenarios surfaced (the Munk instability, the force-application gotcha).

@@ -68,10 +68,10 @@ confounding DOF — e.g. drag-terminal **pins attitude** and zeroes the CoB so t
 drag law is measured in isolation; restoring/coupling dynamics are validated by separate
 scenarios that *release* those DOF. State the isolation explicitly per scenario.
 
-**Scenarios** (single-body, primitive stand-ins; lighthill coefficients from config, not
-Isaac geometry): drag-terminal ✅, free-decay (todo), restoring (todo), and the headline
-**arm-swing base-reaction gate** (todo) — base reaction to a commanded arm trajectory vs a
-Featherstone + per-link-hydro reference; this is the UVMS coupling claim.
+**Scenarios** (primitive stand-ins; lighthill coefficients from config, not Isaac geometry):
+drag-terminal ✅, free-decay ✅, restoring ✅, and the headline **arm-swing base-reaction
+gate** ✅ — base pitch reaction to a commanded arm trajectory vs a floating-base Featherstone +
+per-link-hydro reference; this is the UVMS coupling claim, validated at 7.7%.
 
 ## 4. Results so far
 
@@ -80,12 +80,16 @@ Featherstone + per-link-hydro reference; this is the UVMS coupling claim.
 | drag-terminal (in-sim vs CPU ref) | surge terminal velocity | u_sim 0.95260 vs u_ref 0.94871, **0.41%** | < 5% |
 | free-decay (in-sim vs CPU ref) | surge-decay trajectory | max **0.02%** (0.084/0.030/0.013/0.006) | < 5% |
 | restoring (in-sim vs CPU ref) | roll(t) oscillation + damping | max **0.07°** over a 30°→0 decay | < 3° |
-| arm-swing reaction (the gate) | base reaction vs Featherstone ref | _todo_ (Task 6) | _todo_ |
-| CPU core gate | unit tests / coverage | 57 passed, 90.8% | ≥ 78% |
+| arm-swing reaction (the gate) | base pitch reaction vs Featherstone ref | **7.7%** | < 15% |
+| CPU core gate | unit tests / coverage | 67 passed, 89.7% | ≥ 78% |
 
 The three single-body scenarios jointly certify translation (drag, steady + transient) and
 rotation (restoring couple + angular drag) against the analytical reference; the arm-swing
-gate (Task 6) certifies the multi-body coupling that is the headline claim.
+gate (Task 6) certifies the multi-body coupling that is the headline claim. The arm-swing gate
+compares the **free base's pitch reaction** to a commanded arm swing against the floating-base
+Featherstone reference (`sim_validation/reference_featherstone.md`), fed the sim's actual
+`q(t)`, masses/inertias and joint geometry; it isolates the inertial coupling (gravity/buoyancy/
+drag off) and matches to **7.7%** (pitch tracks −0.4/−1.4/−2.1/−1.8° vs ref −0.4/−1.5/−2.2/−2.0°).
 
 (Closed-form anchor for the CPU ref itself, from Plan A: terminal velocity sim 1.118032 vs
 √(F/Dq) 1.118034.)
@@ -121,6 +125,21 @@ decoupled-axis terminal-velocity check, but it biases force balance — **must**
 for the coupling-sensitive arm-swing gate. A concrete porting gotcha worth documenting for
 anyone applying Fossen wrenches in Isaac Lab.
 
+**E. USD joint `localPos` is interpreted in the *scaled* link frame — a coupling-magnitude
+trap.** When a link is authored as a unit primitive plus a non-uniform scale (the standard
+`UsdGeom.Cube` + `AddScaleOp` idiom), a `RevoluteJoint`'s `LocalPos0/1` anchors are expressed
+in that **scaled** local frame, so the *effective* anchor is `authored_anchor × body_scale`.
+For the UVMS gate this turned an authored arm moment arm of 0.40 m into a real 0.17 m, and a
+Featherstone reference built on the unscaled anchors over-predicted the base reaction ~2.5×
+(gate error ~50–65%). The vehicle↔arm coupling magnitude is set by exactly this moment arm, so
+the bug is invisible to single-body validation and only surfaces in the coupling gate. The fix
+is the same read-actual-from-sim discipline as inertia parity: feed the reference the scaled
+anchors and **assert** them against the arm CoM offset measured from the sim (a `GEOMCHECK`).
+Lesson for the paper's reproducibility section: for articulated UVMS authoring, never trust
+authored joint frames against a scaled link — verify the realized geometry. (Diagnosis was
+clean because the sim itself was correct: it conserved momentum — base recoil velocity matched
+`m0 v0 = −m1 v1` — so the discrepancy had to be in the reference's geometry, not the physics.)
+
 **D. Wrench-API frame + lifecycle specifics (Isaac Lab 2.3).**
 `set_external_force_and_torque(forces, torques, …, is_global=False)` interprets forces in
 the **body/link-local** frame by default; `write_data_to_sim()` must be called before
@@ -142,6 +161,16 @@ version. (Full spike: `docs/isaac-api-findings.md`.) Headless Kit reliably hangs
 
 ## Running log
 
+- **2026-06-30 (Task 6)** — **Arm-swing coupling gate PASSED at 7.7%** — the headline UVMS
+  claim is validated. Built the floating-base 2-body Featherstone CPU reference
+  (`validation/reference_coupled.py`): the base-DOF accelerations solve from the system
+  composite spatial inertia about the base CoM (symmetric by construction), with the prescribed
+  joint acceleration as a known bias; certified by 10 CPU tests incl. a momentum-conservation +
+  first-order-in-dt convergence proof. The in-sim gate (`arm_swing_reaction.py`) first failed at
+  ~50–65%; systematic debugging found the sim was correct (it conserves momentum) and the bug
+  was the reference's joint geometry — **USD `localPos` is scaled by body-scale** (Finding E),
+  giving a 0.40 m vs real 0.17 m moment arm. Fixed by feeding scaled anchors + a `GEOMCHECK`.
+  Gate isolates the inertial coupling (gravity/buoyancy/drag off) and keys on base pitch.
 - **2026-06-30** — Isaac phase start. Spike pinned the read/wrench/inertia/step API on the
   live install (§5D, findings doc). Built `IsaacArticulationView` adapter. Fixed the coeff
   device-placement bug (Finding B, 5th instance) found by the first in-sim run. **drag-terminal
