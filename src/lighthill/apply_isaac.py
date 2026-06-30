@@ -30,9 +30,12 @@ class IsaacArticulationView:
         self.num_envs = int(data.body_pos_w.shape[0])
         self.num_bodies = int(data.body_pos_w.shape[1])
         # Protocol read attributes: per-body rigid mass [E,B] and principal inertia [E,B,3].
+        # Normalize shapes: a single-body RigidObject reports default_mass [E,1] and
+        # default_inertia [E,9] (no body dim), while an Articulation reports [E,B] and
+        # [E,B,9]. Reshape both to the [E,B,...] the Protocol promises.
+        self.mass = data.default_mass.reshape(self.num_envs, self.num_bodies).clone()
+        inertia_flat = data.default_inertia.reshape(self.num_envs, self.num_bodies, 9)
         # default_inertia is a flattened 3x3 (9); the principal diagonal is indices 0,4,8.
-        self.mass = data.default_mass.clone()
-        inertia_flat = data.default_inertia  # [E,B,9]
         self.inertia_diag = inertia_flat[..., [0, 4, 8]].clone()
 
     def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
