@@ -21,8 +21,14 @@ class UnderwaterHydrodynamics:
         self.coeffs = coeffs
         self.current_field = current or CurrentField()
         self.routing = split_added_mass(coeffs.added_mass)  # [B,...]
+
+        # Derive the device from the view's own state tensors.  The
+        # ArticulationView Protocol guarantees body_states() returns real tensors
+        # on the view's device, making this the canonical, Protocol-safe source.
+        _dev = view.body_states()[0].device
+
         self._filter = AccelerationFilter(shape=(view.num_envs, view.num_bodies), alpha=alpha)
-        self._current_world = torch.zeros(view.num_envs, 3)
+        self._current_world = torch.zeros(view.num_envs, 3, device=_dev)
 
         # Pre-expand per-body coefficients to [E,B,...] so torch.cross and other
         # ops that require matching number of dims work without reshaping call sites.
@@ -35,9 +41,9 @@ class UnderwaterHydrodynamics:
         self._residual = self.routing.residual.unsqueeze(0).expand(E, B, 6, 6)    # [E,B,6,6]
 
         # augment inertias once (broadcast per-body routing across envs)
-        mass0 = view.mass if hasattr(view, "mass") else torch.ones(E, B)
+        mass0 = view.mass if hasattr(view, "mass") else torch.ones(E, B, device=_dev)
         inertia0 = (view.inertia_diag if hasattr(view, "inertia_diag")
-                    else torch.ones(E, B, 3))
+                    else torch.ones(E, B, 3, device=_dev))
         m_eff, i_eff = effective_inertia(
             mass0, inertia0,
             _broadcast_routing(self.routing, E),
