@@ -1,0 +1,11 @@
+# BlueROV2 (AUV-only) hydro config.
+# Diagonal coefficients adapted from MarineGym's BlueROV.yaml (MIT, chu2025marinegym).
+# Added mass / damping are vehicle-frame diagonals in NWU [x,y,z,roll,pitch,yaw].
+density: 1025.0
+links:
+  - name: base_link
+    volume: 0.0134            # ~ neutral against ~13.5 kg (V ~= m/rho)
+    center_of_buoyancy: [0.0, 0.0, 0.01]
+    added_mass: {kind: matrix, matrix: [6.36, 7.12, 18.68, 0.189, 0.135, 0.222]}
+    linear_damping: [13.7, 0.0, 33.0, 0.0, 0.8, 0.0]
+    quadratic_damping: [141.0, 217.0, 190.0, 1.19, 0.47, 1.5]

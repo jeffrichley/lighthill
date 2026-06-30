@@ -125,9 +125,8 @@ Per link (Python dataclass / YAML), borrowed from UUV-Sim's proven schema:
 ```
 link:
   name: <body name in the articulation>
-  volume: <m^3>                      # for buoyancy
+  volume: <m^3>                      # for buoyancy; neutrality = tune V to m/rho
   center_of_buoyancy: [x, y, z]      # body frame, m (3D, not scalar)
-  neutrally_buoyant: <bool>          # skip buoyancy if true
   added_mass:                        # one of:
     type: fossen        # explicit 6x6 (36 floats) OR 6-diagonal
     matrix: [...]
