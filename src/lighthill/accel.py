@@ -14,6 +14,11 @@ class AccelerationFilter:
         self._a_filt: Tensor | None = None
 
     def update(self, twist: Tensor, dt: float) -> Tensor:
+        """Estimate body acceleration via finite-difference + EMA.
+
+        ``dt`` must be > 0; passing zero is a caller error (the sim step size
+        is always positive, and zero would produce ``inf`` accelerations).
+        """
         if self._a_filt is None:
             self._a_filt = torch.zeros(*self._shape, 6, device=twist.device, dtype=twist.dtype)
         if self._prev_twist is None:
@@ -40,6 +45,10 @@ class AccelerationFilter:
             acceleration against ``prev_twist = 0``, which may produce
             a nonzero first-step value.  Task 4 callers must not assume
             a masked-reset environment's next ``update`` returns zero.
+
+        ``mask`` must reside on the same device as the filter state
+        (``_a_filt`` / ``_prev_twist``); a device mismatch raises at the
+        index-assignment step.
         """
         if mask is None:
             self._prev_twist = None

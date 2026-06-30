@@ -11,7 +11,7 @@ from .coefficients import ResolvedCoefficients
 from .current import CurrentField, relative_velocity
 from .forces import added_mass_coriolis, added_mass_residual, buoyancy_wrench, drag_wrench
 from .frames import quat_to_rotation_matrix
-from .inertia import effective_inertia, split_added_mass
+from .inertia import AddedMassRouting, effective_inertia, split_added_mass
 
 
 class UnderwaterHydrodynamics:
@@ -26,6 +26,7 @@ class UnderwaterHydrodynamics:
         # ArticulationView Protocol guarantees body_states() returns real tensors
         # on the view's device, making this the canonical, Protocol-safe source.
         _dev = view.body_states()[0].device
+        self._device = _dev
 
         self._filter = AccelerationFilter(shape=(view.num_envs, view.num_bodies), alpha=alpha)
         self._current_world = torch.zeros(view.num_envs, 3, device=_dev)
@@ -41,9 +42,8 @@ class UnderwaterHydrodynamics:
         self._residual = self.routing.residual.unsqueeze(0).expand(E, B, 6, 6)    # [E,B,6,6]
 
         # augment inertias once (broadcast per-body routing across envs)
-        mass0 = view.mass if hasattr(view, "mass") else torch.ones(E, B, device=_dev)
-        inertia0 = (view.inertia_diag if hasattr(view, "inertia_diag")
-                    else torch.ones(E, B, 3, device=_dev))
+        mass0 = view.mass
+        inertia0 = view.inertia_diag
         m_eff, i_eff = effective_inertia(
             mass0, inertia0,
             _broadcast_routing(self.routing, E),
@@ -52,9 +52,9 @@ class UnderwaterHydrodynamics:
 
     def reset(self, current_world: Tensor | None = None) -> None:
         if current_world is not None:
-            self._current_world = current_world
+            self._current_world = current_world.to(self._device)
         else:
-            self._current_world = self.current_field.sample(self.view.num_envs)
+            self._current_world = self.current_field.sample(self.view.num_envs).to(self._device)
         self._filter.reset()
 
     def compute_wrench(self, dt: float) -> Tensor:
@@ -77,8 +77,7 @@ class UnderwaterHydrodynamics:
         self.view.set_external_wrench(torch.cat([f_world, m_world], dim=-1))
 
 
-def _broadcast_routing(routing, num_envs: int):
-    from .inertia import AddedMassRouting
+def _broadcast_routing(routing: AddedMassRouting, num_envs: int) -> AddedMassRouting:
     return AddedMassRouting(
         mass_bump=routing.mass_bump.unsqueeze(0).expand(num_envs, -1),
         inertia_bump=routing.inertia_bump.unsqueeze(0).expand(num_envs, -1, -1),

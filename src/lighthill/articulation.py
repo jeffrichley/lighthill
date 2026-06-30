@@ -16,6 +16,8 @@ class ArticulationView(Protocol):
 
     num_envs: int
     num_bodies: int
+    mass: Tensor          # [E,B] per-body rigid mass (read attribute)
+    inertia_diag: Tensor  # [E,B,3] per-body principal rigid inertia (read attribute)
 
     def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
         """(pos [E,B,3] world, quat [E,B,4] wxyz body->world, vel [E,B,6] body twist)."""
