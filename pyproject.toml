@@ -167,10 +167,20 @@ testpaths = [
 timeout = 60
 timeout_method = "thread"
 addopts = "--import-mode=importlib --cov=src/lighthill --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=78 -n auto --dist=loadscope"
+# Repo root on the path so the real_sim tests can import the standalone
+# `sim_validation` scenario package.
+pythonpath = ["."]
 
-# Custom marker pattern. Uncomment when you have tests that need real GPU /
-# Isaac Sim and should be opt-in rather than run in CI:
-#
-# markers = [
-#     "real_sim: requires a real Isaac Sim + GPU. Skipped without LIGHTHILL_REAL_SIM_OK=1.",
-# ]
+# Real-Isaac tests are opt-in (need Isaac Sim + GPU); skipped in CI and on the
+# laptop CPU gate unless LIGHTHILL_REAL_SIM_OK=1.
+markers = [
+    "real_sim: requires a real Isaac Sim + GPU. Skipped without LIGHTHILL_REAL_SIM_OK=1.",
+]
+
+[tool.coverage.run]
+# apply_isaac.py imports isaaclab and only runs inside Isaac (validated by the
+# real_sim in-sim suite, not unit coverage); it cannot be imported on the CPU
+# gate, so exclude it from coverage to keep the laptop/CI measurement honest.
+omit = [
+    "src/lighthill/apply_isaac.py",
+]
