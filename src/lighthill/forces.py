@@ -10,14 +10,17 @@ from .frames import skew, world_vec_to_body
 
 
 def buoyancy_wrench(quat_wb: Tensor, volume: Tensor, cob_body: Tensor,
-                    neutrally_buoyant: Tensor, density: float,
-                    gravity: float = GRAVITY) -> Tensor:
-    """Buoyancy at the center of buoyancy, expressed as a body-frame wrench."""
+                    density: float, gravity: float = GRAVITY) -> Tensor:
+    """Buoyancy F = rho*g*V at the center of buoyancy, as a body-frame wrench.
+
+    Always applied: force AND moment = cob_body x F_body. Neutrality is expressed
+    by tuning `volume` (V = m/rho) so buoyancy cancels weight in net while the
+    CoB-CoM offset still produces the restoring couple -- never by skipping the
+    force. See DECISIONS.md (D1)."""
     mag = density * gravity * volume  # [...]
     f_world = torch.zeros(*volume.shape, 3, dtype=volume.dtype, device=volume.device)
     f_world[..., 2] = mag  # +Z world (NWU up)
     f_body = world_vec_to_body(f_world, quat_wb)  # [...,3]
-    f_body = torch.where(neutrally_buoyant.unsqueeze(-1), torch.zeros_like(f_body), f_body)
     moment = torch.cross(cob_body, f_body, dim=-1)  # r x F
     return torch.cat([f_body, moment], dim=-1)
 

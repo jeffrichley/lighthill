@@ -17,7 +17,6 @@ VALID = """
       - name: base
         volume: 0.0134
         center_of_buoyancy: [0.0, 0.0, 0.02]
-        neutrally_buoyant: false
         added_mass: {kind: matrix, matrix: [6.4, 7.1, 18.0, 0.2, 0.2, 0.2]}
         linear_damping: [4.0, 6.2, 5.2, 0.07, 0.07, 0.07]
         quadratic_damping: [18.0, 21.0, 36.0, 1.5, 1.5, 1.5]

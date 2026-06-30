@@ -72,7 +72,6 @@ def simulate(
     minv = torch.linalg.inv(mass_matrix)
     cob = torch.tensor(body.cob, dtype=torch.float32)
     vol = torch.tensor(body.volume, dtype=torch.float32)
-    not_neutral = torch.tensor(False)
     f_ext = external_force_body if external_force_body is not None else torch.zeros(6)
 
     quat = quat0.clone() if quat0 is not None else torch.tensor([1.0, 0.0, 0.0, 0.0])
@@ -85,7 +84,7 @@ def simulate(
 
     pos_hist, quat_hist, twist_hist = [], [], []
     for _ in range(steps):
-        buoy = buoyancy_wrench(quat, vol, cob, not_neutral, body.density, gravity)
+        buoy = buoyancy_wrench(quat, vol, cob, body.density, gravity)
         # gravity (weight) acts at CoM (body origin), world -Z, no moment
         R = quat_to_rotation_matrix(quat)
         weight_world = torch.tensor([0.0, 0.0, -body.mass * gravity])

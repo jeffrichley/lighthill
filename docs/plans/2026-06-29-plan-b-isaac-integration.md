@@ -537,8 +537,7 @@ class UnderwaterHydrodynamics:
         cur = self._current_world.unsqueeze(1).expand(-1, self.view.num_bodies, -1)
         v_rel = relative_velocity(twist, quat, cur)
         c = self.coeffs
-        buoy = buoyancy_wrench(quat, c.volume, c.center_of_buoyancy,
-                               c.neutrally_buoyant, c.density)
+        buoy = buoyancy_wrench(quat, c.volume, c.center_of_buoyancy, c.density)
         drag = drag_wrench(v_rel, c.linear_damping, c.quadratic_damping)
         cor = added_mass_coriolis(c.added_mass, v_rel)
         a_filt = self._filter.update(twist, dt)

@@ -20,7 +20,6 @@ class ResolvedCoefficients:
     quadratic_damping: Tensor   # [N,6,6]
     volume: Tensor              # [N]
     center_of_buoyancy: Tensor  # [N,3]
-    neutrally_buoyant: Tensor   # [N] bool
     density: float
     names: tuple[str, ...]
 
@@ -70,9 +69,8 @@ def resolve_coefficients(config: RobotHydroConfig,
     quad = torch.stack([_to_6x6(link.quadratic_damping, dtype) for link in links])
     vol = torch.tensor([link.volume for link in links], dtype=dtype)
     cob = torch.tensor([link.center_of_buoyancy for link in links], dtype=dtype)
-    neutral = torch.tensor([link.neutrally_buoyant for link in links], dtype=torch.bool)
     return ResolvedCoefficients(
         added_mass=added, linear_damping=lin, quadratic_damping=quad,
-        volume=vol, center_of_buoyancy=cob, neutrally_buoyant=neutral,
+        volume=vol, center_of_buoyancy=cob,
         density=config.density, names=tuple(link.name for link in links),
     )

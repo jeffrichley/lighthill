@@ -30,7 +30,6 @@ class LinkConfig:
     name: str
     volume: float
     center_of_buoyancy: tuple[float, float, float]
-    neutrally_buoyant: bool
     added_mass: AddedMassSpec
     linear_damping: tuple[float, ...]
     quadratic_damping: tuple[float, ...]
@@ -68,7 +67,6 @@ def _parse_link(raw: dict) -> LinkConfig:
         name=name,
         volume=volume,
         center_of_buoyancy=tuple(float(c) for c in cob),  # type: ignore[arg-type]
-        neutrally_buoyant=bool(raw.get("neutrally_buoyant", False)),
         added_mass=am,
         linear_damping=tuple(float(v) for v in lin),
         quadratic_damping=tuple(float(v) for v in quad),

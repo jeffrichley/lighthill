@@ -1,48 +1,45 @@
 # BlueROV2 + Reach Alpha 5-DOF arm (UVMS) hydro config.
 # Vehicle: explicit BlueROV2 diagonal (as in bluerov2_auv.yaml).
-# Arm links: cylinder shape models (Reach Alpha slender links), axis=z, neutrally
-# buoyant approximation (calibrate volumes during Plan B pilot — see design spec risks).
+# Arm links: cylinder shape models (Reach Alpha slender links), axis=z.
+# Neutrality is expressed by tuning each link's `volume` to V = m/rho, never by
+# a flag (see DECISIONS.md D1). The arm-link volumes below are PLACEHOLDERS: the
+# per-link mass is not known in Plan A, so they are calibrated to ~neutral during
+# the Plan B pilot against the articulation's actual masses (see design spec risks).
 density: 1025.0
 links:
   - name: base_link
-    volume: 0.0134
+    volume: 0.0134            # ~ neutral against ~13.5 kg (V ~= m/rho)
     center_of_buoyancy: [0.0, 0.0, 0.01]
-    neutrally_buoyant: false
     added_mass: {kind: matrix, matrix: [6.36, 7.12, 18.68, 0.189, 0.135, 0.222]}
     linear_damping: [13.7, 0.0, 33.0, 0.0, 0.8, 0.0]
     quadratic_damping: [141.0, 217.0, 190.0, 1.19, 0.47, 1.5]
   - name: alpha_link_1
-    volume: 0.00012
+    volume: 0.00012          # placeholder -> tune to m/rho in Plan B
     center_of_buoyancy: [0.0, 0.0, 0.0]
-    neutrally_buoyant: true
     added_mass: {kind: cylinder, radius: 0.020, length: 0.10, axis: z}
     linear_damping: [3.0, 3.0, 1.0, 0.01, 0.01, 0.01]
     quadratic_damping: [12.0, 12.0, 4.0, 0.05, 0.05, 0.05]
   - name: alpha_link_2
-    volume: 0.00010
+    volume: 0.00010          # placeholder -> tune to m/rho in Plan B
     center_of_buoyancy: [0.0, 0.0, 0.0]
-    neutrally_buoyant: true
     added_mass: {kind: cylinder, radius: 0.018, length: 0.12, axis: z}
     linear_damping: [3.0, 3.0, 1.0, 0.01, 0.01, 0.01]
     quadratic_damping: [12.0, 12.0, 4.0, 0.05, 0.05, 0.05]
   - name: alpha_link_3
-    volume: 0.00008
+    volume: 0.00008          # placeholder -> tune to m/rho in Plan B
     center_of_buoyancy: [0.0, 0.0, 0.0]
-    neutrally_buoyant: true
     added_mass: {kind: cylinder, radius: 0.016, length: 0.12, axis: z}
     linear_damping: [2.5, 2.5, 0.8, 0.01, 0.01, 0.01]
     quadratic_damping: [10.0, 10.0, 3.0, 0.04, 0.04, 0.04]
   - name: alpha_link_4
-    volume: 0.00006
+    volume: 0.00006          # placeholder -> tune to m/rho in Plan B
     center_of_buoyancy: [0.0, 0.0, 0.0]
-    neutrally_buoyant: true
     added_mass: {kind: cylinder, radius: 0.014, length: 0.10, axis: z}
     linear_damping: [2.0, 2.0, 0.6, 0.01, 0.01, 0.01]
     quadratic_damping: [8.0, 8.0, 2.5, 0.03, 0.03, 0.03]
   - name: alpha_link_5
-    volume: 0.00004
+    volume: 0.00004          # placeholder -> tune to m/rho in Plan B
     center_of_buoyancy: [0.0, 0.0, 0.0]
-    neutrally_buoyant: true
     added_mass: {kind: cylinder, radius: 0.012, length: 0.08, axis: z}
     linear_damping: [1.5, 1.5, 0.5, 0.01, 0.01, 0.01]
     quadratic_damping: [6.0, 6.0, 2.0, 0.02, 0.02, 0.02]

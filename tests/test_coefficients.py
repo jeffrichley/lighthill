@@ -13,7 +13,6 @@ from lighthill.config import AddedMassSpec, LinkConfig, RobotHydroConfig
 def _link(**kw):
     base = dict(
         name="l", volume=0.001, center_of_buoyancy=(0.0, 0.0, 0.0),
-        neutrally_buoyant=False,
         added_mass=AddedMassSpec(kind="matrix", matrix=tuple([1.0] * 6)),
         linear_damping=tuple([2.0] * 6), quadratic_damping=tuple([3.0] * 6),
     )
