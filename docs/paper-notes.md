@@ -80,8 +80,8 @@ per-link-hydro reference; this is the UVMS coupling claim, validated at 7.7%.
 | drag-terminal (in-sim vs CPU ref) | surge terminal velocity | u_sim 0.95260 vs u_ref 0.94871, **0.41%** | < 5% |
 | free-decay (in-sim vs CPU ref) | surge-decay trajectory | max **0.02%** (0.084/0.030/0.013/0.006) | < 5% |
 | restoring (in-sim vs CPU ref) | roll(t) oscillation + damping | max **0.07°** over a 30°→0 decay | < 3° |
-| arm-swing reaction — translation | base recoil (x,z) vs Featherstone ref | **<1%** (converges as dt→0) | < 15% |
-| arm-swing reaction — pitch | base pitch vs *two independent* analytics | ref-vs-ref **0.004%**; sim is outlier (Finding F) | see Finding F |
+| arm-swing coupling (analytics × MuJoCo) | base pitch, 3 independent methods | Featherstone = momentum-recon = **MuJoCo 2.7091°**, agree **0.00%** | < 15% |
+| arm-swing coupling (PhysX) | base pitch, in-PhysX | **2.23° (18% low)** — PhysX defect, Finding F | n/a (backend issue) |
 | CPU core gate | unit tests / coverage | 67 passed, 89.7% | ≥ 78% |
 
 The three single-body scenarios jointly certify translation (drag, steady + transient) and
@@ -90,15 +90,15 @@ gate (Task 6) certifies the multi-body coupling that is the headline claim. The 
 compares the **free base's reaction** to a commanded arm swing against the floating-base
 Featherstone reference (`sim_validation/reference_featherstone.md`), fed the sim's actual
 `q(t)`, masses/inertias and joint geometry, isolating the inertial coupling (gravity/buoyancy/
-drag off). The **translation** recoil converges to the reference at **<1%** as dt→0 — the
-momentum-exchange coupling is solidly verified. The **pitch** reaction, however, does *not*
-converge: a timestep study (verification, not validation) shows the sim-vs-reference pitch error
-grows as dt shrinks (rigid: 4.0/5.6/9.9/19.0% at dt=10/5/2.5/1.25 ms), a clean ~0.81 amplitude
-ratio at fine dt. A **third, independent** analytical model — a pure-NumPy planar
-momentum-reconstruction solver (`reference_planar_momentum`, enforcing Px=Pz=Ly=0 with no
-composite-inertia matrix) — settles which model is right: it lands on the Featherstone reference
-to **0.004%** (2.7090° vs 2.7090°), with the PhysX sim the outlier at 2.1957° (0.81×). Two
-analytics from independent physics agree; PhysX under-rotates the free base. See Finding F.
+drag off). The **translation** recoil converges to the reference at **<1%**. The **pitch**
+reaction exposed a **PhysX defect** (Finding F): PhysX under-rotates the coupled free base by
+~18%, worsening as dt→0, while conserving momentum at the velocity level. This was proven a
+backend problem — not a lighthill or reference error — by **three independent methods that all
+agree to 0%**: the composite-inertia Featherstone reference, a pure-NumPy momentum-reconstruction
+solver (`reference_planar_momentum`, enforcing Px=Pz=Ly=0), and an independent **MuJoCo** rebuild
+of the rig (driven base pitch **2.7091° vs 2.7091°**, 0.00%). PhysX fails identically in reduced
+*and* maximal coordinates, so it cannot be configured away; the coupling **is** simulable
+correctly — on a MuJoCo-class engine. See Finding F.
 
 (Closed-form anchor for the CPU ref itself, from Plan A: terminal velocity sim 1.118032 vs
 √(F/Dq) 1.118034.)
@@ -149,27 +149,44 @@ authored joint frames against a scaled link — verify the realized geometry. (D
 clean because the sim itself was correct: it conserved momentum — base recoil velocity matched
 `m0 v0 = −m1 v1` — so the discrepancy had to be in the reference's geometry, not the physics.)
 
-**F. PhysX under-rotates a free articulation root under a driven joint — the coupling gate's
-pitch signal is a solver artifact, not a lighthill error.** In the rigid, force-free arm-swing
-case (no gravity/buoyancy/drag/added-mass), zero net external torque means angular momentum is
-conserved *exactly*, which uniquely fixes the free base's pitch reaction. Two analytical models
-built on independent physics — the composite-inertia Featherstone reference (`reference_coupled`)
-and a momentum-reconstruction solver that enforces Px=Pz=Ly=0 directly with no inertia matrix
-(`reference_planar_momentum`) — agree on that pitch to **0.004%** (2.7090°). PhysX delivers
-**2.196°** (0.81×) and the error *grows* as dt shrinks (4.0/5.6/9.9/19.0% at dt=10/5/2.5/1.25 ms):
-because total simulated time is held fixed, finer dt = more steps, so the deficit scales roughly
-with step count — the fingerprint of a **per-step numerical dissipation** of the base's angular
-DOF in the reduced-coordinate articulation solver / implicit stiff drive, not a discretization
-error (which would shrink). Translation recoil, by contrast, converges to <1%. Implications:
-(i) the lighthill force law and the floating-base coupling reference are *correct* — this is a
-positive result, established by an independent third model, not a lighthill bug; (ii) the in-sim
-pitch metric measures a PhysX artifact, so the coupling should be reported as **verified in
-translation** with the rotational reaction cross-checked analytically; (iii) an open, testable
-question remains — an instantaneous-momentum-leak mechanism did *not* quantitatively account for
-the deficit (5× too small, uncorrelated), so pinning the exact PhysX mechanism (implicit-drive
-damping vs. articulation root inertia vs. solver-iteration count) needs dedicated in-sim
-experiments (vary drive type/damping, solver iterations, and root handling). Referee script:
-`sim_validation/arm_swing_referee.py`.
+**F. PhysX under-integrates the orientation of a coupled free base by ~18%; MuJoCo and two
+independent analytics agree to 0%.** The headline coupling gate measures the free base's *pitch*
+reaction to a commanded arm swing (gravity/buoyancy/drag/added-mass off, so the scene is
+torque-free and angular momentum is conserved *exactly*). PhysX's base pitch lands at **2.23°**
+vs the analytics' **2.71°** — 18% low at fine dt, and *growing* as dt shrinks. We chased this to
+ground:
+
+* *Not the tolerance, not damping, not the metric.* Zeroing PhysX's default 0.05 body damping
+  moved it ~1–2%; raising solver iterations made it *worse*; the pitch is extracted from a
+  provably pure-Y quaternion; every root angular-velocity buffer Isaac exposes agrees.
+* *The tell.* PhysX's reported base angular **velocity** conserves momentum to 0.00% and matches
+  the analytics (integrates to 2.68°), but PhysX's reported base **orientation** only reaches
+  2.23° — i.e. **the pose is not the integral of PhysX's own velocity.** The solver computes the
+  right momentum-conserving rate but under-rotates the body.
+* *Not the drive, not the articulation representation.* A free *passive* joint (no drive, arm
+  given an initial velocity) still under-integrates (pose/velocity ratio 1.16); rebuilding in
+  **maximal coordinates** (rigid bodies + joint constraint, no `ArticulationRootAPI`) still fails
+  (1.13). So it is PhysX's rigid-body **orientation integration under coupled rotation**, common
+  to both reduced and maximal coordinates. A lone free body spinning uncoupled integrates fine
+  (1.003) — the fault appears only when a jointed neighbour drives the base's rotation.
+* *The arbiter.* Two analytics built on independent physics — the composite-inertia Featherstone
+  reference (`reference_coupled`) and a momentum-reconstruction solver enforcing Px=Pz=Ly=0 with
+  no inertia matrix (`reference_planar_momentum`) — agree to **0.004%** (2.7090°). An independent
+  **MuJoCo** rebuild of the same rig (matched mass/inertia/geometry) makes it unanimous:
+  free-joint pose/velocity ratio **1.0000**, driven-gate base pitch **2.7091° = 0.00%** vs the
+  reconstruction reference. Three independent methods (2 analytical + MuJoCo) converge; **PhysX is
+  the sole outlier.**
+
+Implications: (i) lighthill's force law and the floating-base coupling are **correct** — proven
+by two analytics *and* an independent engine, not a lighthill bug; (ii) the deficit is a
+**PhysX-specific defect** in coupled free-body orientation integration — it cannot be configured
+away (damping, iterations, drive type, or coordinate representation all fail), so the vehicle's
+*pose* is genuinely wrong in PhysX and a metric change would not make the sim usable; (iii) the
+UVMS coupling **can** be simulated correctly — **MuJoCo** does it to 0%, so the recommended
+backend for free-floating manipulation is a MuJoCo-class engine (MuJoCo/MJX, or Isaac Lab's
+incoming **Newton** = MuJoCo-Warp, which keeps the Isaac ecosystem). lighthill's per-link hydro
+ports cleanly via MuJoCo `data.xfrc_applied`. Scripts: `sim_validation/{arm_swing_referee,
+coast_test,freejoint_test,maximal_coupling_test,mujoco_coupling_test}.py`.
 
 **D. Wrench-API frame + lifecycle specifics (Isaac Lab 2.3).**
 `set_external_force_and_torque(forces, torques, …, is_global=False)` interprets forces in
@@ -192,6 +209,22 @@ version. (Full spike: `docs/isaac-api-findings.md`.) Headless Kit reliably hangs
 
 ## Running log
 
+- **2026-07-01 (Task 6, RESOLVED via MuJoCo)** — **The coupling gate's 18% pitch gap is a PhysX
+  defect; MuJoCo + two analytics agree to 0% (Finding F, final).** Systematic-debugged the deficit
+  to ground: it is *not* the metric, damping (~1–2%), solver iterations (made it worse), pitch
+  extraction (pure-Y), or the velocity-buffer choice (all agree). The tell: PhysX's reported base
+  angular **velocity** conserves momentum (0.00%) and matches the analytics (∫ = 2.68°), but its
+  reported base **orientation** only reaches 2.23° — the pose is not the integral of PhysX's own
+  velocity. A **free passive joint** (no drive) still under-integrates (ratio 1.16), and a
+  **maximal-coordinate** rebuild (no `ArticulationRootAPI`) also fails (1.13) — so it is PhysX
+  rigid-body orientation integration under coupling, in *both* representations; a lone uncoupled
+  spin is fine (1.003). Decisive cross-check: rebuilt the rig in **MuJoCo** (`mujoco_coupling_test.py`)
+  — free-joint pose/velocity **1.0000**, driven base pitch **2.7091° = 0.00%** vs the momentum
+  reconstruction. So lighthill + both references are correct; PhysX is the sole outlier; the
+  coupling is simulable on a MuJoCo-class engine (MuJoCo/MJX or Isaac Lab **Newton** = MuJoCo-Warp),
+  with per-link hydro portable via `data.xfrc_applied`. New diagnostic scripts: coast_test,
+  freejoint_test, maximal_coupling_test, mujoco_coupling_test. Corrected the intermediate
+  "per-step numerical dissipation" guess — the real cause is coupled orientation integration.
 - **2026-07-01 (Task 6, referee)** — **The 7.7% is a PhysX artifact, not a lighthill error
   (Finding F).** Following the user's push to defend the number, a timestep-convergence study
   showed the sim-vs-reference *pitch* error *diverges* as dt→0 (rigid: 4.0/5.6/9.9/19.0% at
