@@ -1,0 +1,27 @@
+# Full Isaac Lab (develop / 3.0-beta) + Newton (MJWarp) backend, headless / kit-less.
+# No Isaac Sim needed when the Omniverse visualizer is not used -> runs on a plain
+# CUDA container, incl. Windows hosts via Docker Desktop + the nvidia runtime.
+#
+# Derived from a verified interactive build (IsaacLab develop @ 612306d, newton 1.4.0.dev0,
+# warp 1.15, torch 2.10.0+cu128, Python 3.12). `develop` moves; pin a commit for exact repro.
+#
+# Build:  docker build -f sim_validation/docker/Dockerfile.isaaclab-newton -t isaaclab-newton sim_validation/docker
+# Run  :  docker run --rm --gpus all -v <repo>:/work isaaclab-newton bash -lc \
+#           'cd /opt/IsaacLab && ./isaaclab.sh -p /work/sim_validation/newton_smoke.py \
+#            --task Isaac-Cartpole-Direct --num_envs 16 --headless --visualizer none \
+#            env.sim.physics=newton_mjwarp'
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git curl build-essential cmake ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+WORKDIR /opt
+RUN git clone --depth 1 -b develop https://github.com/isaac-sim/IsaacLab.git
+WORKDIR /opt/IsaacLab
+RUN uv venv --python 3.12 --seed env_isaaclab
+RUN . env_isaaclab/bin/activate && uv pip install --upgrade pip && \
+    uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+RUN . env_isaaclab/bin/activate && echo y | ./isaaclab.sh -i
+ENV PATH="/opt/IsaacLab/env_isaaclab/bin:${PATH}"
+WORKDIR /work
