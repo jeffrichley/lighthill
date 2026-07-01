@@ -63,14 +63,30 @@ def main() -> None:
         except Exception as ex:
             print(f"PROBE:: set_external_force_and_torque FAILED -> {ex!r}", flush=True)
 
-        # (4) newton/xfrc handles anywhere on the robot?
-        hits = [a for a in dir(robot) if "newton" in a.lower() or "xfrc" in a.lower()]
-        print("PROBE:: newton/xfrc attrs on robot =", hits, flush=True)
-        # inertia write surface
-        for a in ["set_masses", "set_inertias", "get_masses", "get_inertias"]:
-            src = "root_physx_view" if hasattr(robot, "root_physx_view") else None
-            print(f"PROBE:: inertia write '{a}' via root_physx_view = "
-                  f"{hasattr(getattr(robot, 'root_physx_view', object()), a)}", flush=True)
+        # (4) exact type of the read arrays + warp->torch conversion
+        bp = d.body_pos_w
+        print(f"PROBE:: type(body_pos_w) = {type(bp).__module__}.{type(bp).__name__}", flush=True)
+        try:
+            import warp as wp
+            t = wp.to_torch(bp)
+            print(f"PROBE:: wp.to_torch(body_pos_w) -> torch shape={tuple(t.shape)} dtype={t.dtype}", flush=True)
+        except Exception as ex:  # noqa: BLE001
+            print(f"PROBE:: wp.to_torch failed -> {ex!r}", flush=True)
+        try:
+            print(f"PROBE:: body_pos_w.torch() -> {tuple(bp.torch().shape)}", flush=True)
+        except Exception as ex:  # noqa: BLE001
+            print(f"PROBE:: .torch() n/a -> {type(ex).__name__}", flush=True)
+
+        # (5) inertia / mass WRITE surface on the Newton articulation
+        setters = [a for a in dir(robot)
+                   if (a.startswith(("set_", "write_")) and any(k in a.lower() for k in ("mass", "inertia", "body", "root")))]
+        print("PROBE:: robot set_/write_ (mass/inertia/body/root) =", setters, flush=True)
+        data_setters = [a for a in dir(d) if any(k in a.lower() for k in ("mass", "inertia")) and not a.startswith("_")]
+        print("PROBE:: data mass/inertia members =", data_setters, flush=True)
+        # any underlying newton view/model handle?
+        handles = [a for a in dir(robot) if any(k in a.lower() for k in ("view", "model", "_root", "solver", "newton"))
+                   and not a.startswith("__")]
+        print("PROBE:: robot view/model/newton handles =", handles, flush=True)
 
 
 if __name__ == "__main__":
