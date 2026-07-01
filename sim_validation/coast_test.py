@@ -55,7 +55,9 @@ def run(dt: float = DT, steps: int | None = None) -> None:
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
     from isaaclab.sim import SimulationContext
-    from pxr import Gf, UsdGeom, UsdPhysics
+    from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
+
+    keep_damping = os.environ.get("LIGHTHILL_GATE_KEEP_DAMPING") == "1"
 
     dev = "cuda:0"
     sim_cfg = sim_utils.SimulationCfg(
@@ -75,6 +77,10 @@ def run(dt: float = DT, steps: int | None = None) -> None:
         UsdPhysics.CollisionAPI.Apply(p)
         UsdPhysics.RigidBodyAPI.Apply(p)
         UsdPhysics.MassAPI.Apply(p).GetMassAttr().Set(mass)
+        if not keep_damping:  # default: zero PhysX's 0.05 damping (Exp 2: pure-spin conservation)
+            rb = PhysxSchema.PhysxRigidBodyAPI.Apply(p)
+            rb.CreateLinearDampingAttr().Set(0.0)
+            rb.CreateAngularDampingAttr().Set(0.0)
         return p
 
     # SOLO: single free rigid body (a RigidObject, NOT an articulation -- PhysX rejects a
@@ -147,6 +153,7 @@ def run(dt: float = DT, steps: int | None = None) -> None:
     duo.write_root_velocity_to_sim(rv.clone())
 
     ts, w_solo, w_duo, w_duo_arm = [], [], [], []
+    qy_solo, qw_solo, qy_duo, qw_duo = [], [], [], []  # pose (Y-angle) tracking
     for k in range(steps):
         duo.set_joint_position_target(torch.zeros(1, 1, device=dev))
         sim.step()
@@ -156,6 +163,12 @@ def run(dt: float = DT, steps: int | None = None) -> None:
         w_solo.append(float(solo.data.root_ang_vel_w[0, 1]))  # RigidObject: [N,3]
         w_duo.append(float(duo.data.body_ang_vel_w[0, 0, 1]))
         w_duo_arm.append(float(duo.data.body_ang_vel_w[0, 1, 1]))
+        sq = solo.data.root_quat_w[0]  # (w,x,y,z)
+        dq = duo.data.body_quat_w[0, 0]
+        qw_solo.append(float(sq[0]))
+        qy_solo.append(float(sq[2]))
+        qw_duo.append(float(dq[0]))
+        qy_duo.append(float(dq[2]))
 
     def decay_pct(w):
         return (w[0] - w[-1]) / w[0] * 100.0 if w[0] else float("nan")
@@ -174,6 +187,20 @@ def run(dt: float = DT, steps: int | None = None) -> None:
           f"implied_ang_damping={implied_damping(w_duo, dt, steps):.4f}", flush=True)
     print(f"  DUO  arm  wy: {w_duo_arm[0]:.6f} -> {w_duo_arm[-1]:.6f}  "
           f"(should track base if arm is rigid with it)", flush=True)
+    # Exp 2: does the reported angular velocity match the actual pose rotation rate for a
+    # PURE spin? Pose Y-angle = 2*atan2(qy, qw); its mean rate vs the mean reported wy.
+    def pose_rate(qy, qw):
+        ang = [2.0 * math.atan2(y, w) for y, w in zip(qy, qw, strict=True)]
+        return (ang[-1] - ang[0]) / (dt * (len(ang) - 1))
+    solo_pose_rate = pose_rate(qy_solo, qw_solo)
+    duo_pose_rate = pose_rate(qy_duo, qw_duo)
+    solo_wy_mean = sum(w_solo) / len(w_solo)
+    duo_wy_mean = sum(w_duo) / len(w_duo)
+    print("  VEL-vs-POSE (pure spin):", flush=True)
+    print(f"    SOLO: mean reported wy={solo_wy_mean:.6f}  pose rate={solo_pose_rate:.6f}  "
+          f"ratio rep/pose={solo_wy_mean/solo_pose_rate:.4f}", flush=True)
+    print(f"    DUO : mean reported wy={duo_wy_mean:.6f}  pose rate={duo_pose_rate:.6f}  "
+          f"ratio rep/pose={duo_wy_mean/duo_pose_rate:.4f}", flush=True)
     print("  curve (t, solo_wy, duo_wy):", flush=True)
     stride = max(1, steps // 12)
     for k in range(0, steps, stride):

@@ -168,7 +168,7 @@ def run(steps: int = 800, dt: float = 0.005) -> dict:
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import Articulation, ArticulationCfg
     from isaaclab.sim import SimulationContext
-    from pxr import Gf, UsdGeom, UsdPhysics
+    from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
     from lighthill.apply import UnderwaterHydrodynamics
     from lighthill.apply_isaac import IsaacArticulationView
@@ -185,6 +185,13 @@ def run(steps: int = 800, dt: float = 0.005) -> dict:
     root = "/World/Robot"
     UsdGeom.Xform.Define(stage, root)
     UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath(root))
+    # Phase 3 attribution: raising solver iterations was tested and made the base-pitch
+    # deficit WORSE (5.6%->9.6% at dt=5ms), so it is OPT-IN only, not a default. Enable
+    # with LIGHTHILL_GATE_HIGH_ITERS=1 to reproduce that experiment.
+    if os.environ.get("LIGHTHILL_GATE_HIGH_ITERS") == "1":
+        artapi = PhysxSchema.PhysxArticulationAPI.Apply(stage.GetPrimAtPath(root))
+        artapi.CreateSolverPositionIterationCountAttr().Set(64)
+        artapi.CreateSolverVelocityIterationCountAttr().Set(8)
 
     def make_link(path, scale, mass, pos):
         cube = UsdGeom.Cube.Define(stage, path)
@@ -196,6 +203,14 @@ def run(steps: int = 800, dt: float = 0.005) -> dict:
         UsdPhysics.CollisionAPI.Apply(p)
         UsdPhysics.RigidBodyAPI.Apply(p)
         UsdPhysics.MassAPI.Apply(p).GetMassAttr().Set(mass)
+        # FIX (Phase 3): zero PhysX's DEFAULT 0.05 body damping. The analytical reference is
+        # drag-free/undamped; this unauthored viscous torque bled the free base's angular
+        # momentum (~exp(-0.05 t)) and is the arm-swing pitch deficit's root cause (Finding G).
+        # LIGHTHILL_GATE_KEEP_DAMPING=1 restores the 0.05 default (bug reproduction).
+        if os.environ.get("LIGHTHILL_GATE_KEEP_DAMPING") != "1":
+            rb = PhysxSchema.PhysxRigidBodyAPI.Apply(p)
+            rb.CreateLinearDampingAttr().Set(0.0)
+            rb.CreateAngularDampingAttr().Set(0.0)
         return p
 
     base = make_link(root + "/base", BASE_SCALE, BASE_MASS, (0.0, 0.0, 0.0))
@@ -241,11 +256,21 @@ def run(steps: int = 800, dt: float = 0.005) -> dict:
 
     # capture rigid + augmented masses/inertias for offline momentum analysis
     pv = robot.root_physx_view
+    keep_damping = os.environ.get("LIGHTHILL_GATE_KEEP_DAMPING") == "1"
+    high_iters = os.environ.get("LIGHTHILL_GATE_HIGH_ITERS") == "1"
+    base_prim = stage.GetPrimAtPath(root + "/base")
+    ang_damp = base_prim.GetAttribute("physxRigidBody:angularDamping")
+    pos_iters = stage.GetPrimAtPath(root).GetAttribute("physxArticulation:solverPositionIterationCount")
+    print(f"CONFIG:: keep_damping={keep_damping} high_iters={high_iters}  "
+          f"base_angularDamping={ang_damp.Get() if ang_damp.IsValid() else 'UNSET'}  "
+          f"solverPosIters={pos_iters.Get() if pos_iters.IsValid() else 'UNSET'}", flush=True)
     diag = {
         "masses_rigid": masses,
         "inertias_rigid": [list(i) for i in inertias],
         "masses_aug": pv.get_masses()[0].tolist(),
         "inertias_aug": pv.get_inertias()[0].tolist(),
+        "keep_damping": keep_damping,
+        "high_iters": high_iters,
     }
 
     q_sim: list[float] = []
@@ -254,12 +279,21 @@ def run(steps: int = 800, dt: float = 0.005) -> dict:
     arm_pos_sim: list[list[float]] = []
     base_vel_sim: list[list[float]] = []   # [lin3, ang3] world
     arm_vel_sim: list[list[float]] = []
+    # Exp 1: capture every root-specific angular-velocity buffer Isaac exposes, to test
+    # which (if any) matches d(pose)/dt -- distinguishes a readout artifact from a real
+    # root pose-integration loss.
+    root_names = [n for n in ("root_ang_vel_w", "root_com_ang_vel_w", "root_link_ang_vel_w")
+                  if hasattr(robot.data, n)]
+    print(f"ROOTVEL_ATTRS:: {root_names}", flush=True)
+    root_wy_sim: dict[str, list[float]] = {n: [] for n in root_names}
     for k in range(steps):
         t = k * dt
         robot.set_joint_position_target(torch.tensor([[_q_cmd(t)]], device=dev))
         hydro.apply(dt)                     # per-link wrench + write_data_to_sim
         sim.step()
         robot.update(dt)
+        for n in root_names:
+            root_wy_sim[n].append(float(getattr(robot.data, n)[0, 1]))
         q_sim.append(float(robot.data.joint_pos[0, 0]))
         base_pos_sim.append([float(x) for x in robot.data.body_pos_w[0, 0].tolist()])
         base_quat_sim.append([float(x) for x in robot.data.body_quat_w[0, 0].tolist()])
@@ -297,7 +331,8 @@ def run(steps: int = 800, dt: float = 0.005) -> dict:
     _persist(q_sim, p_sim, p_ref, pitch_sim, pitch_ref, dt,
              extra={"arm_pos_sim": arm_pos_sim, "base_vel_sim": base_vel_sim,
                     "arm_vel_sim": arm_vel_sim, "arm_pos_ref": ref["arm_pos"].tolist(),
-                    "diag": diag})
+                    "base_quat_sim": base_quat_sim, "base_quat_ref": ref["base_quat"].tolist(),
+                    "root_wy_sim": root_wy_sim, "diag": diag})
     return {
         "peak_rel_error": peak_rel_error, "rel_pitch": rel_pitch, "rel_trans": rel_trans,
         "pitch_sim_deg": [math.degrees(float(pitch_sim[k])) for k in range(SAMPLE_EVERY - 1, steps, SAMPLE_EVERY)],
