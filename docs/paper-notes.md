@@ -80,16 +80,25 @@ per-link-hydro reference; this is the UVMS coupling claim, validated at 7.7%.
 | drag-terminal (in-sim vs CPU ref) | surge terminal velocity | u_sim 0.95260 vs u_ref 0.94871, **0.41%** | < 5% |
 | free-decay (in-sim vs CPU ref) | surge-decay trajectory | max **0.02%** (0.084/0.030/0.013/0.006) | < 5% |
 | restoring (in-sim vs CPU ref) | roll(t) oscillation + damping | max **0.07°** over a 30°→0 decay | < 3° |
-| arm-swing reaction (the gate) | base pitch reaction vs Featherstone ref | **7.7%** | < 15% |
+| arm-swing reaction — translation | base recoil (x,z) vs Featherstone ref | **<1%** (converges as dt→0) | < 15% |
+| arm-swing reaction — pitch | base pitch vs *two independent* analytics | ref-vs-ref **0.004%**; sim is outlier (Finding F) | see Finding F |
 | CPU core gate | unit tests / coverage | 67 passed, 89.7% | ≥ 78% |
 
 The three single-body scenarios jointly certify translation (drag, steady + transient) and
 rotation (restoring couple + angular drag) against the analytical reference; the arm-swing
 gate (Task 6) certifies the multi-body coupling that is the headline claim. The arm-swing gate
-compares the **free base's pitch reaction** to a commanded arm swing against the floating-base
+compares the **free base's reaction** to a commanded arm swing against the floating-base
 Featherstone reference (`sim_validation/reference_featherstone.md`), fed the sim's actual
-`q(t)`, masses/inertias and joint geometry; it isolates the inertial coupling (gravity/buoyancy/
-drag off) and matches to **7.7%** (pitch tracks −0.4/−1.4/−2.1/−1.8° vs ref −0.4/−1.5/−2.2/−2.0°).
+`q(t)`, masses/inertias and joint geometry, isolating the inertial coupling (gravity/buoyancy/
+drag off). The **translation** recoil converges to the reference at **<1%** as dt→0 — the
+momentum-exchange coupling is solidly verified. The **pitch** reaction, however, does *not*
+converge: a timestep study (verification, not validation) shows the sim-vs-reference pitch error
+grows as dt shrinks (rigid: 4.0/5.6/9.9/19.0% at dt=10/5/2.5/1.25 ms), a clean ~0.81 amplitude
+ratio at fine dt. A **third, independent** analytical model — a pure-NumPy planar
+momentum-reconstruction solver (`reference_planar_momentum`, enforcing Px=Pz=Ly=0 with no
+composite-inertia matrix) — settles which model is right: it lands on the Featherstone reference
+to **0.004%** (2.7090° vs 2.7090°), with the PhysX sim the outlier at 2.1957° (0.81×). Two
+analytics from independent physics agree; PhysX under-rotates the free base. See Finding F.
 
 (Closed-form anchor for the CPU ref itself, from Plan A: terminal velocity sim 1.118032 vs
 √(F/Dq) 1.118034.)
@@ -140,6 +149,28 @@ authored joint frames against a scaled link — verify the realized geometry. (D
 clean because the sim itself was correct: it conserved momentum — base recoil velocity matched
 `m0 v0 = −m1 v1` — so the discrepancy had to be in the reference's geometry, not the physics.)
 
+**F. PhysX under-rotates a free articulation root under a driven joint — the coupling gate's
+pitch signal is a solver artifact, not a lighthill error.** In the rigid, force-free arm-swing
+case (no gravity/buoyancy/drag/added-mass), zero net external torque means angular momentum is
+conserved *exactly*, which uniquely fixes the free base's pitch reaction. Two analytical models
+built on independent physics — the composite-inertia Featherstone reference (`reference_coupled`)
+and a momentum-reconstruction solver that enforces Px=Pz=Ly=0 directly with no inertia matrix
+(`reference_planar_momentum`) — agree on that pitch to **0.004%** (2.7090°). PhysX delivers
+**2.196°** (0.81×) and the error *grows* as dt shrinks (4.0/5.6/9.9/19.0% at dt=10/5/2.5/1.25 ms):
+because total simulated time is held fixed, finer dt = more steps, so the deficit scales roughly
+with step count — the fingerprint of a **per-step numerical dissipation** of the base's angular
+DOF in the reduced-coordinate articulation solver / implicit stiff drive, not a discretization
+error (which would shrink). Translation recoil, by contrast, converges to <1%. Implications:
+(i) the lighthill force law and the floating-base coupling reference are *correct* — this is a
+positive result, established by an independent third model, not a lighthill bug; (ii) the in-sim
+pitch metric measures a PhysX artifact, so the coupling should be reported as **verified in
+translation** with the rotational reaction cross-checked analytically; (iii) an open, testable
+question remains — an instantaneous-momentum-leak mechanism did *not* quantitatively account for
+the deficit (5× too small, uncorrelated), so pinning the exact PhysX mechanism (implicit-drive
+damping vs. articulation root inertia vs. solver-iteration count) needs dedicated in-sim
+experiments (vary drive type/damping, solver iterations, and root handling). Referee script:
+`sim_validation/arm_swing_referee.py`.
+
 **D. Wrench-API frame + lifecycle specifics (Isaac Lab 2.3).**
 `set_external_force_and_torque(forces, torques, …, is_global=False)` interprets forces in
 the **body/link-local** frame by default; `write_data_to_sim()` must be called before
@@ -161,6 +192,21 @@ version. (Full spike: `docs/isaac-api-findings.md`.) Headless Kit reliably hangs
 
 ## Running log
 
+- **2026-07-01 (Task 6, referee)** — **The 7.7% is a PhysX artifact, not a lighthill error
+  (Finding F).** Following the user's push to defend the number, a timestep-convergence study
+  showed the sim-vs-reference *pitch* error *diverges* as dt→0 (rigid: 4.0/5.6/9.9/19.0% at
+  10/5/2.5/1.25 ms) while *translation* converges to <1% — so the residual is not discretization.
+  To referee reference-vs-sim, built (TDD) an independent third model:
+  `validation/reference_planar_momentum.py`, a pure-NumPy planar solver reconstructing the base
+  from Px=Pz=Ly=0 with no composite-inertia matrix and no acceleration integration — physics and
+  numerics both independent of `reference_coupled`. Fed the sim's realized q(t)/masses/inertias,
+  it lands on the Featherstone reference to **0.004%** (2.7090° vs 2.7090°), PhysX the outlier at
+  2.1957° (0.81×). Verdict: the coupling reference is correct; PhysX under-rotates the free
+  articulation root, worsening with step count → per-step numerical dissipation in the solver /
+  implicit drive. A momentum-leak mechanism did *not* quantitatively explain the deficit (5× off,
+  uncorrelated) — exact PhysX mechanism still open, needs in-sim experiments. Referee:
+  `sim_validation/arm_swing_referee.py`. Corrected an earlier (wrong) claim that 7.7% was benign
+  discretization error.
 - **2026-06-30 (Task 6)** — **Arm-swing coupling gate PASSED at 7.7%** — the headline UVMS
   claim is validated. Built the floating-base 2-body Featherstone CPU reference
   (`validation/reference_coupled.py`): the base-DOF accelerations solve from the system
