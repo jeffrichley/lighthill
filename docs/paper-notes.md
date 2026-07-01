@@ -188,6 +188,20 @@ incoming **Newton** = MuJoCo-Warp, which keeps the Isaac ecosystem). lighthill's
 ports cleanly via MuJoCo `data.xfrc_applied`. Scripts: `sim_validation/{arm_swing_referee,
 coast_test,freejoint_test,maximal_coupling_test,mujoco_coupling_test}.py`.
 
+**F′. lighthill runs on the full Isaac Lab Newton stack; the rigid coupling is exact (0.00%).**
+The recommendation is now realized, not just projected: `apply_newton.py`
+(`NewtonArticulationView`, one adapter, no hydro-core change) drives the real hydro stack through
+a kit-less, free-floating 2-body rig on Newton (`sim_validation/newton_coupling_gate.py`). The
+driven arm-swing base pitch is **2.7091° vs the 2.7091° analytics, rel_err 0.0000** — the full
+Isaac-Lab-wrapped MJWarp reproduces the coupling PhysX misses by ~18%; the free-joint momentum
+ratio is **1.0000** (PhysX 1.13–1.16), and a world wrench through the adapter moves the free base
+at the physical `F/m` rate. **Open:** with lighthill's added-mass augmentation on, sim/reference
+*peaks* agree to 0.17% but the mid-swing trajectory diverges **21% pointwise** — an added-mass
+*routing* question (fold into inertia via `set_inertias` vs push through the xfrc residual) that
+the PhysX base-orientation defect had been masking. This is the next design decision, not a
+correctness failure of the rigid coupling. Stack detail: MJWarp's default `euler` integrator
+diverges under the stiff PD drive; use `implicitfast` (as in the standalone MJWarp test).
+
 **D. Wrench-API frame + lifecycle specifics (Isaac Lab 2.3).**
 `set_external_force_and_torque(forces, torques, …, is_global=False)` interprets forces in
 the **body/link-local** frame by default; `write_data_to_sim()` must be called before
@@ -209,6 +223,26 @@ version. (Full spike: `docs/isaac-api-findings.md`.) Headless Kit reliably hangs
 
 ## Running log
 
+- **2026-07-01 (Task 7, lighthill VERIFIED on the full Isaac Lab Newton stack)** — **The complete
+  hydro stack runs on Newton and the vehicle↔arm coupling matches the known-good analytics to
+  0.00%, inside the Isaac ecosystem.** Built `apply_newton.py` (`NewtonArticulationView`, one new
+  adapter, zero hydro-core changes) and the capstone gate `sim_validation/newton_coupling_gate.py`:
+  a kit-less, free-floating 2-body rig authored directly on `sim.stage`, driving the real
+  `UnderwaterHydrodynamics` through the adapter. Four staged known-good checks (all pass /
+  reproduce): **A** rig authored on Newton, arm CoM offset exact (−0.170); **B** a world wrench via
+  the adapter moves the *free* base (|vel|=1.408 vs expected 1.46) — closes the earlier cartpole
+  |vel|=0 caveat, forces produce motion; **C** free-joint momentum coupling ratio **1.0000** (PhysX
+  1.13–1.16); **D1** driven arm-swing base pitch **2.7091° vs 2.7091°, rel_err 0.0000** — the exact
+  known-good 2.709° that PhysX gets ~18% wrong. So the full Isaac-Lab-wrapped MJWarp (not just raw
+  MuJoCo-Warp) does the coupling PhysX cannot. **New open finding (D2):** with lighthill's
+  added-mass augmentation *on*, sim and reference peaks still agree to 0.17% but the mid-swing
+  trajectory diverges **21% pointwise** — the added-mass *routing* question (fold into
+  mass/inertia vs push through the xfrc residual) is real and was previously *masked* by the PhysX
+  base-orientation defect; now isolated and reproducible, reported not hidden. Stack notes: MJWarp's
+  default `euler` integrator diverges under the stiff PD drive (kp=4000) at dt=1.25ms → solver set
+  to `implicitfast` (matches the standalone MJWarp test); `--physics` self-registered for the
+  task-less `launch_simulation` scan; reset restores rigid inertias between stages. Verified in the
+  `isaaclab-newton` Docker container (Isaac Lab develop + Newton, headless/kit-less, RTX 4060 Ti).
 - **2026-07-01 (Task 6, RESOLVED via MuJoCo)** — **The coupling gate's 18% pitch gap is a PhysX
   defect; MuJoCo + two analytics agree to 0% (Finding F, final).** Systematic-debugged the deficit
   to ground: it is *not* the metric, damping (~1–2%), solver iterations (made it worse), pitch
