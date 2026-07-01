@@ -194,25 +194,42 @@ def main() -> None:
                 sim.step()
                 robot.update(DT)
 
-        # -- Stage B: a constant world wrench on the free base MUST produce base motion --
+        # -- Stage B: a constant world wrench must move the free body, and by the exact impulse.
+        # Invariant (impulse-momentum theorem): a constant force F applied over n steps of dt
+        # deposits an impulse J=F*n*dt into the system, so total linear momentum P=sum_i m_i v_i
+        # must equal J. This is frame-agnostic and needs no assumption about how the base vs arm
+        # split the motion -- it just proves the adapter's wrench path transmits force correctly
+        # and conserves momentum. (The base is joined to the arm by a revolute joint, which frees
+        # only rotation and locks all 3 translations, so both bodies share the push; the naive
+        # F/m_base gives the wrong single-body number -- momentum, not base speed, is the invariant.)
+        # CoM coincides with each body's link origin here (uniform cubes centered on the prim),
+        # so body_lin_vel_w is the CoM velocity used for momentum.
         def _stage_b():
             _reset_state()
-            # isolate the wrench->motion path: free the joint so the stiff PD can't interfere
             robot.write_joint_stiffness_to_sim_index(stiffness=torch.zeros(view.num_envs, njoints, device=dev))
             robot.write_joint_damping_to_sim_index(damping=torch.zeros(view.num_envs, njoints, device=dev))
             e, b = view.num_envs, view.num_bodies
+            force = 40.0
             wrench = torch.zeros(e, b, 6, device=dev)
-            wrench[:, 0, 0] = 40.0  # +40 N on the base in world +x
+            wrench[:, 0, 0] = force  # +force N on the base in world +x
             n = 400
             for _k in range(n):
                 view.set_external_wrench(wrench)
                 sim.step()
                 robot.update(DT)
-            _p, _q, vel = view.body_states()
-            vmax = float(vel[0, 0, :3].norm())
-            # a = F/m -> v ~= (40/13.7)*(n*DT); sanity-check we're in the physical ballpark
-            v_expect = (40.0 / BASE_MASS) * (n * DT)
-            return f"base |vel|={vmax:.4f} after {n} steps of +40N (expect ~{v_expect:.3f})  [must be > 0, finite]"
+            lin_w = _to_torch(robot.data.body_lin_vel_w).reshape(e, b, 3)      # world CoM velocities
+            momentum = (view.mass[..., None] * lin_w).sum(dim=1)[0]            # [3] total linear P
+            impulse = force * n * DT                                          # J = F * n * dt (+x)
+            px, py, pz = (float(x) for x in momentum)
+            base_vx = float(lin_w[0, 0, 0])
+            rel = abs(px - impulse) / impulse
+            off_axis = max(abs(py), abs(pz)) / impulse
+            ok = rel < 0.01 and off_axis < 0.01
+            print(f"NEWTON_GATE:: B.momentum P=({px:.4f},{py:.4f},{pz:.4f}) N*s  impulse={impulse:.4f} N*s  "
+                  f"rel_err={rel:.4f} off_axis={off_axis:.4f}  base_vx={base_vx:.4f}", flush=True)
+            assert ok, f"momentum {px:.4f} != impulse {impulse:.4f} (rel {rel:.1%}, off-axis {off_axis:.1%})"
+            return (f"total P_x={px:.4f} = impulse {impulse:.4f} N*s (rel_err {rel:.4f}); base_vx={base_vx:.4f} "
+                    f"[momentum conserved -> wrench path is exact]")
         _stage("B.free-body-wrench", _stage_b)
 
         # -- Stage C: free-joint coast; base pose must track its reported velocity (ratio ~1) --
