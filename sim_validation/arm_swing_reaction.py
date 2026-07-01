@@ -131,6 +131,24 @@ def _gate_coeffs():
     # breaks dt-convergence. Off by default (the real gate keeps added mass).
     if os.environ.get("LIGHTHILL_GATE_NO_ADDEDMASS") == "1":
         coeffs.added_mass = torch.zeros_like(coeffs.added_mass)
+    # DIAGNOSTIC: isotropize added mass -> purely diagonal with equal translational entries
+    # (= max of the 3) and no off-diagonal, so split_added_mass folds EVERYTHING into the
+    # implicit scalar mass/inertia and the explicit lagged residual is EMPTY. If the gate's
+    # added-mass error collapses under this, the culprit is the anisotropic/off-diagonal
+    # remainder being routed through the EMA-lagged explicit wrench. Applied to sim + reference.
+    if os.environ.get("LIGHTHILL_GATE_ISO_ADDEDMASS") == "1":
+        am = coeffs.added_mass  # [N,6,6]
+        diag = torch.diagonal(am, dim1=-2, dim2=-1)  # [N,6]
+        iso_lin = diag[:, :3].max(dim=-1, keepdim=True).values.expand(-1, 3)
+        new_diag = torch.cat([iso_lin, diag[:, 3:]], dim=-1)  # [N,6] isotropic trans + angular
+        new = torch.zeros_like(am)
+        idx = torch.arange(6)
+        new[:, idx, idx] = new_diag
+        coeffs.added_mass = new
+    if os.environ.get("LIGHTHILL_GATE_PRINT_AM") == "1":
+        print("GATE_AM:: added_mass diag per link =",
+              [[round(float(x), 4) for x in torch.diagonal(coeffs.added_mass[i])] for i in range(coeffs.added_mass.shape[0])],
+              flush=True)
     return coeffs
 
 

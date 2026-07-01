@@ -60,9 +60,12 @@ from lighthill.apply_newton import NewtonArticulationView, _to_torch  # noqa: E4
 
 # MJWarp (float32) integrates the stiff PD drive (kp=4000) stably only at a small step;
 # the standalone mjwarp_coupling_test proved dt=1.25ms holds it (5ms diverges to NaN).
-DT = 0.00125
-STEPS = 3200  # 4 s of driven swing
+# Diagnostic overrides (default = the headline conditions). LIGHTHILL_DT keeps the ~4 s
+# duration by scaling STEPS unless LIGHTHILL_STEPS is given.
+DT = float(os.environ.get("LIGHTHILL_DT", 0.00125))
+STEPS = int(os.environ.get("LIGHTHILL_STEPS", round(4.0 / DT)))
 TOL = 0.15  # same as reference_featherstone.md; PhysX gate fails this
+ONLY_D2 = os.environ.get("LIGHTHILL_ONLY_D2") == "1"  # skip B/C/D1 for fast diagnostics
 
 parser = argparse.ArgumentParser(description="Newton free-floating UVMS coupling gate.")
 # AppLauncher does NOT register --physics (it's a hydra/task override); for this task-less
@@ -230,7 +233,8 @@ def main() -> None:
             assert ok, f"momentum {px:.4f} != impulse {impulse:.4f} (rel {rel:.1%}, off-axis {off_axis:.1%})"
             return (f"total P_x={px:.4f} = impulse {impulse:.4f} N*s (rel_err {rel:.4f}); base_vx={base_vx:.4f} "
                     f"[momentum conserved -> wrench path is exact]")
-        _stage("B.free-body-wrench", _stage_b)
+        if not ONLY_D2:
+            _stage("B.free-body-wrench", _stage_b)
 
         # -- Stage C: free-joint coast; base pose must track its reported velocity (ratio ~1) --
         def _stage_c():
@@ -256,7 +260,8 @@ def main() -> None:
             med = ratios[len(ratios) // 2] if ratios else float("nan")
             return (f"base wy peak={max(abs(x) for x in wby):.4f} pose-rate peak={max(abs(x) for x in rate):.4f} "
                     f"ratio reported/pose={med:.4f}  [~1.0 good; PhysX 1.13-1.16]")
-        _stage("C.freejoint-coast", _stage_c)
+        if not ONLY_D2:
+            _stage("C.freejoint-coast", _stage_c)
 
         # -- Stage D: driven arm swing vs the analytical floating-base Featherstone reference --
         # Two configs, both compared to the SAME reference fed the realized q(t):
@@ -312,7 +317,7 @@ def main() -> None:
                   f"ref={pr:.4f}deg -> {'PASS' if ok else 'FAIL'}", flush=True)
             assert ok, f"rigid floating-base coupling off by {rel:.1%} (> {TOL:.0%})"
             return f"rel_err={rel:.4f} sim={ps:.4f}deg ref={pr:.4f}deg (known-good 2.709) PASS"
-        d1 = _stage("D1.rigid-coupling-gate", _stage_d1)
+        d1 = None if ONLY_D2 else _stage("D1.rigid-coupling-gate", _stage_d1)
 
         # D2: diagnostic -- added-mass augmentation on top (open routing question, not gated).
         def _stage_d2():
@@ -323,7 +328,8 @@ def main() -> None:
             return f"rel_err={rel:.4f} peaks {ps:.3f}/{pr:.3f}deg -> {note}"
         _stage("D2.added-mass-diagnostic", _stage_d2)
 
-        print(f"NEWTON_GATE:: ALL_DONE  headline(D1 rigid coupling)={'PASS' if d1 else 'FAIL'}", flush=True)
+        _hl = "SKIPPED" if ONLY_D2 else ("PASS" if d1 else "FAIL")
+        print(f"NEWTON_GATE:: ALL_DONE  headline(D1 rigid coupling)={_hl}", flush=True)
 
 
 if __name__ == "__main__":
