@@ -125,6 +125,12 @@ def _gate_coeffs():
     coeffs.volume = torch.zeros_like(coeffs.volume)                 # buoyancy OFF
     coeffs.linear_damping = torch.zeros_like(coeffs.linear_damping)     # drag OFF
     coeffs.quadratic_damping = torch.zeros_like(coeffs.quadratic_damping)
+    # DIAGNOSTIC (convergence study): also zero added mass -> pure rigid coupling, no
+    # inertia augmentation, no filtered residual. Applied consistently to sim + reference
+    # (both read this one config), so it isolates whether the added-mass path is what
+    # breaks dt-convergence. Off by default (the real gate keeps added mass).
+    if os.environ.get("LIGHTHILL_GATE_NO_ADDEDMASS") == "1":
+        coeffs.added_mass = torch.zeros_like(coeffs.added_mass)
     return coeffs
 
 
