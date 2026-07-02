@@ -20,7 +20,7 @@ import math
 
 import numpy as np
 
-from lighthill.validation.reference_planar_momentum import simulate_planar_momentum
+from sim_validation.reference_planar_momentum import simulate_planar_momentum
 
 
 def _cosine_swing(amp: float, omega: float):

@@ -26,7 +26,10 @@ import os
 
 import numpy as np
 
-from lighthill.validation.reference_planar_momentum import simulate_planar_momentum
+try:  # package import (pytest / repo root on path) vs standalone `python sim_validation/...`
+    from sim_validation.reference_planar_momentum import simulate_planar_momentum
+except ModuleNotFoundError:
+    from reference_planar_momentum import simulate_planar_momentum
 
 # effective (scaled) joint anchors -- must match arm_swing_reaction.ANCHOR_*_EFF
 ANCHOR_BASE_EFF = (0.0, 0.0, -0.045)

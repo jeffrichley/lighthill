@@ -79,6 +79,10 @@ dev = [
     "vulture>=2.13",
     # Type stubs for PyYAML (torch stubs are bundled with torch itself).
     "types-PyYAML>=6.0",
+    # Verification-only: the independent momentum reference (sim_validation/
+    # reference_planar_momentum.py) and the MuJoCo cross-check scripts use numpy. Kept OUT of
+    # the runtime deps so the shipped plugin stays torch-only / GPU-resident (no CPU round-trips).
+    "numpy>=1.26",
 ]
 
 [tool.ruff]

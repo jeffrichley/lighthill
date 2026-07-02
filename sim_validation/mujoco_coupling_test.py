@@ -107,7 +107,10 @@ def run_driven(steps: int = 3200) -> None:
     q_sim = np.array(q_sim)
 
     # feed MuJoCo's realized q(t) to the independent momentum-reconstruction reference
-    from lighthill.validation.reference_planar_momentum import simulate_planar_momentum
+    try:  # package import (repo root on path) vs standalone `python sim_validation/...`
+        from sim_validation.reference_planar_momentum import simulate_planar_momentum
+    except ModuleNotFoundError:
+        from reference_planar_momentum import simulate_planar_momentum
     qd = np.gradient(q_sim, DT)
 
     def traj(t):
