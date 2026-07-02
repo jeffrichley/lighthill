@@ -19,4 +19,8 @@ coverage.xml
 
 # subagent-driven-development scratch (briefs, reports, diffs, progress ledger)
 .superpowers/
+
+# regenerable sim_validation run dumps + MuJoCo's auto-written log (never tracked)
 _armswing_run.json
+_*_run.json
+MUJOCO_LOG.TXT
