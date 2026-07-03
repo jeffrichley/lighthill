@@ -15,6 +15,19 @@ from .inertia import AddedMassRouting, effective_inertia, split_added_mass
 
 
 class UnderwaterHydrodynamics:
+    """Per-link Fossen hydrodynamic wrench applied over an articulation each step.
+
+    Assembles the four force contributions of the UVMS model — buoyancy, linear
+    plus quadratic drag, added-mass Coriolis, and the added-mass residual — for
+    every body across every environment, and writes the result back through an
+    :class:`ArticulationView`. The isotropic part of each link's added mass is
+    folded into the rigid mass/inertia once at construction (via
+    :func:`split_added_mass` / :func:`effective_inertia`) so only the
+    anisotropic remainder is carried as an explicit residual wrench at runtime.
+    Deliberately Isaac-free: it depends only on the ArticulationView Protocol,
+    so the whole force law is testable on CPU without Isaac Lab installed.
+    """
+
     def __init__(self, view: ArticulationView, coeffs: ResolvedCoefficients, *,
                  current: CurrentField | None = None, alpha: float = 0.08) -> None:
         self.view = view
@@ -51,6 +64,14 @@ class UnderwaterHydrodynamics:
         view.set_body_inertias(m_eff, i_eff)
 
     def reset(self, current_world: Tensor | None = None) -> None:
+        """Re-seed the ambient current and clear the acceleration filter.
+
+        Call at episode boundaries. When ``current_world`` ([E,3], world frame)
+        is given it becomes the fixed per-environment flow; otherwise a fresh
+        flow is drawn from the configured :class:`CurrentField`. The
+        acceleration EMA is fully reset so the first post-reset step contributes
+        no spurious residual wrench.
+        """
         if current_world is not None:
             self._current_world = current_world.to(self._device)
         else:
@@ -58,6 +79,15 @@ class UnderwaterHydrodynamics:
         self._filter.reset()
 
     def compute_wrench(self, dt: float) -> Tensor:
+        """Sum the four hydrodynamic wrench terms in the body frame for one step.
+
+        Reads current body pose and twist, forms the flow-relative velocity, and
+        returns ``buoyancy + drag + added-mass Coriolis + added-mass residual``
+        as a per-body [E,B,6] wrench (force then moment). ``dt`` is the sim step,
+        needed only to finite-difference twist into the acceleration that drives
+        the residual term. The wrench is expressed in each body's own frame;
+        :meth:`apply` rotates it to world before handing it to the view.
+        """
         _pos, quat, twist = self.view.body_states()  # [E,B,*]
         cur = self._current_world.unsqueeze(1).expand(-1, self.view.num_bodies, -1)
         v_rel = relative_velocity(twist, quat, cur)
@@ -69,6 +99,13 @@ class UnderwaterHydrodynamics:
         return buoy + drag + cor + resid
 
     def apply(self, dt: float) -> None:
+        """Compute this step's wrench and push it to the sim in world frame.
+
+        Rotates the body-frame force and moment from :meth:`compute_wrench` into
+        the world frame with each body's orientation and writes the [E,B,6]
+        result via ``view.set_external_wrench``. This is the one call the sim
+        integration loop needs per step.
+        """
         w_body = self.compute_wrench(dt)
         quat = self.view.body_states()[1]
         R = quat_to_rotation_matrix(quat)  # [E,B,3,3]
