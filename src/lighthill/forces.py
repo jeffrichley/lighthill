@@ -16,7 +16,8 @@ def buoyancy_wrench(quat_wb: Tensor, volume: Tensor, cob_body: Tensor,
     Always applied: force AND moment = cob_body x F_body. Neutrality is expressed
     by tuning `volume` (V = m/rho) so buoyancy cancels weight in net while the
     CoB-CoM offset still produces the restoring couple -- never by skipping the
-    force. See DECISIONS.md (D1)."""
+    force. See DECISIONS.md (D1).
+    """
     mag = density * gravity * volume  # [...]
     f_world = torch.zeros(*volume.shape, 3, dtype=volume.dtype, device=volume.device)
     f_world[..., 2] = mag  # +Z world (NWU up)

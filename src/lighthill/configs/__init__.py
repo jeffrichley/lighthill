@@ -1,1 +1,1 @@
-# Package marker — makes lighthill.configs importable via importlib.resources.
+"""Bundled example robot hydro-config YAML files, loadable via importlib.resources."""
