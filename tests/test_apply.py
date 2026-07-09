@@ -4,12 +4,24 @@ from lighthill import example_config_path
 from lighthill.apply import UnderwaterHydrodynamics
 from lighthill.articulation import FakeArticulation
 from lighthill.coefficients import resolve_coefficients
-from lighthill.config import RobotHydroConfig
+from lighthill.config import AddedMassSpec, LiftSpec, LinkConfig, RobotHydroConfig
+from lighthill.forces import lift_wrench
 
 
 def _auv_coeffs():
     cfg = RobotHydroConfig.from_yaml(example_config_path("bluerov2_auv.yaml"))
     return resolve_coefficients(cfg)
+
+
+def _bare_link(**kw):
+    """A link with every hydro term off, so compute_wrench isolates whatever is enabled."""
+    base = dict(
+        name="foil", volume=0.0, center_of_buoyancy=(0.0, 0.0, 0.0),
+        added_mass=AddedMassSpec(kind="matrix", matrix=(0.0,) * 6),
+        linear_damping=(0.0,) * 6, quadratic_damping=(0.0,) * 6,
+    )
+    base.update(kw)
+    return LinkConfig(**base)
 
 
 def test_inertias_are_augmented_at_init():
@@ -49,6 +61,33 @@ def test_wrench_shape_matches_bodies():
     hydro.reset()
     w = hydro.compute_wrench(dt=0.01)
     assert w.shape == (4, nb, 6)
+
+
+def test_lift_contributes_to_wrench():
+    # foil at angle of attack, every other term zeroed -> the wrench IS the lift wrench.
+    link = _bare_link(lift=LiftSpec(semi_axes=(0.5, 0.1, 0.1), c_kutta=1.0, c_magnus=1.0))
+    coeffs = resolve_coefficients(RobotHydroConfig(links=(link,)))
+    art = FakeArticulation(num_envs=1, num_bodies=1)
+    art.set_body_velocity(torch.tensor([[[1.0, 0.3, 0.0, 0.0, 0.0, 0.5]]]))  # AoA + yaw spin
+    hydro = UnderwaterHydrodynamics(art, coeffs)
+    hydro.reset(current_world=torch.zeros(1, 3))
+    w = hydro.compute_wrench(dt=0.01)
+    v_rel = torch.tensor([1.0, 0.3, 0.0, 0.0, 0.0, 0.5])
+    expected = lift_wrench(v_rel, torch.tensor([0.5, 0.1, 0.1]),
+                           torch.tensor(1.0), torch.tensor(1.0), coeffs.density)
+    assert w[0, 0, 0:3].norm() > 1.0  # non-trivial lift
+    assert torch.allclose(w[0, 0], expected, rtol=1e-4, atol=1e-2)
+
+
+def test_no_lift_by_default():
+    # a link without a lift spec (and all else zeroed) produces no force at all.
+    coeffs = resolve_coefficients(RobotHydroConfig(links=(_bare_link(),)))
+    art = FakeArticulation(num_envs=1, num_bodies=1)
+    art.set_body_velocity(torch.tensor([[[1.0, 0.3, 0.0, 0.0, 0.0, 0.5]]]))
+    hydro = UnderwaterHydrodynamics(art, coeffs)
+    hydro.reset(current_world=torch.zeros(1, 3))
+    w = hydro.compute_wrench(dt=0.01)
+    assert torch.allclose(w[0, 0], torch.zeros(6), atol=1e-6)
 
 
 def test_apply_converts_body_wrench_to_world_frame():

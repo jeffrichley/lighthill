@@ -9,7 +9,13 @@ from .accel import AccelerationFilter
 from .articulation import ArticulationView
 from .coefficients import ResolvedCoefficients
 from .current import CurrentField, relative_velocity
-from .forces import added_mass_coriolis, added_mass_residual, buoyancy_wrench, drag_wrench
+from .forces import (
+    added_mass_coriolis,
+    added_mass_residual,
+    buoyancy_wrench,
+    drag_wrench,
+    lift_wrench,
+)
 from .frames import quat_to_rotation_matrix
 from .inertia import AddedMassRouting, effective_inertia, split_added_mass
 
@@ -45,6 +51,10 @@ class UnderwaterHydrodynamics:
         self._quad_damp = coeffs.quadratic_damping.to(_dev).unsqueeze(0).expand(E, B, 6, 6)  # [E,B,6,6]
         self._added_mass = coeffs.added_mass.to(_dev).unsqueeze(0).expand(E, B, 6, 6)       # [E,B,6,6]
         self._residual = self.routing.residual.unsqueeze(0).expand(E, B, 6, 6)             # [E,B,6,6] (already on _dev)
+        self._lift_semi = coeffs.lift_semi_axes.to(_dev).unsqueeze(0).expand(E, B, 3)       # [E,B,3]
+        lift_coef = coeffs.lift_coef.to(_dev)
+        self._lift_ck = lift_coef[:, 0].unsqueeze(0).expand(E, B)                           # [E,B]
+        self._lift_cm = lift_coef[:, 1].unsqueeze(0).expand(E, B)                           # [E,B]
 
         # augment inertias once (broadcast per-body routing across envs).
         # Isaac exposes default_mass/default_inertia as CPU tensors even on a CUDA
@@ -73,7 +83,8 @@ class UnderwaterHydrodynamics:
         cor = added_mass_coriolis(self._added_mass, v_rel)
         a_filt = self._filter.update(twist, dt)
         resid = added_mass_residual(self._residual, a_filt)
-        return buoy + drag + cor + resid
+        lift = lift_wrench(v_rel, self._lift_semi, self._lift_ck, self._lift_cm, self.coeffs.density)
+        return buoy + drag + cor + resid + lift
 
     def apply(self, dt: float) -> None:
         w_body = self.compute_wrench(dt)
