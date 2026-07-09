@@ -125,8 +125,8 @@ warn_unused_ignores = true
 no_implicit_optional = true
 check_untyped_defs = true
 
-# lighthill lazy-imports heavy GPU/sim deps (torch, Isaac Lab/Sim) that aren't
-# present in the lint/test environment. Keep the rest of the package
+# lighthill lazy-imports heavy GPU/sim deps (torch, Isaac Lab/Sim, Newton/Warp) that
+# aren't present in the lint/test environment. Keep the rest of the package
 # type-checkable without them installed.
 [[tool.mypy.overrides]]
 module = [
@@ -138,8 +138,22 @@ module = [
     "isaacsim.*",
     "omni",
     "omni.*",
+    "warp",
+    "warp.*",
 ]
 ignore_missing_imports = true
+
+# numpy is not imported by src at all -- mypy only reaches it transitively through torch's
+# stubs. numpy>=2's shipped .pyi uses PEP 695 `type` aliases that mypy rejects under
+# python_version="3.10" (kept low on purpose, to validate the source stays 3.10-compatible).
+# Skip descending into numpy's stubs (treat as Any) rather than raise the target version.
+[[tool.mypy.overrides]]
+module = [
+    "numpy",
+    "numpy.*",
+]
+follow_imports = "skip"
+follow_imports_for_stubs = true
 
 [tool.vulture]
 # Dead-code finder. Run via: ``uv run vulture src``. Tests are excluded

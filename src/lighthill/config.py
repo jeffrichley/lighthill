@@ -94,7 +94,7 @@ def _parse_lift(name: str, raw: dict) -> LiftSpec:
     if any(a <= 0.0 for a in axes):
         raise ConfigError(f"link '{name}': lift semi_axes must all be > 0, got {axes}")
     return LiftSpec(
-        semi_axes=axes,  # type: ignore[arg-type]
+        semi_axes=axes,
         c_kutta=float(raw.get("c_kutta", 1.0)),
         c_magnus=float(raw.get("c_magnus", 1.0)),
     )
