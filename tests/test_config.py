@@ -64,3 +64,39 @@ def test_cylinder_added_mass_requires_radius_and_length(tmp_path):
     )
     with pytest.raises(ConfigError, match="cylinder"):
         RobotHydroConfig.from_yaml(_write(tmp_path, bad))
+
+
+LIFT_LINE = "        lift: {semi_axes: [0.5, 0.1, 0.1], c_kutta: 0.9, c_magnus: 0.3}\n"
+
+
+def test_loads_lift_config(tmp_path):
+    cfg = RobotHydroConfig.from_yaml(_write(tmp_path, VALID + LIFT_LINE))
+    lift = cfg.links[0].lift
+    assert lift is not None
+    assert lift.semi_axes == (0.5, 0.1, 0.1)
+    assert lift.c_kutta == 0.9
+    assert lift.c_magnus == 0.3
+
+
+def test_lift_absent_by_default(tmp_path):
+    cfg = RobotHydroConfig.from_yaml(_write(tmp_path, VALID))
+    assert cfg.links[0].lift is None
+
+
+def test_lift_defaults_coefficients_to_unity(tmp_path):
+    body = VALID + "        lift: {semi_axes: [0.5, 0.1, 0.1]}\n"
+    cfg = RobotHydroConfig.from_yaml(_write(tmp_path, body))
+    assert cfg.links[0].lift.c_kutta == 1.0
+    assert cfg.links[0].lift.c_magnus == 1.0
+
+
+def test_rejects_wrong_length_semi_axes(tmp_path):
+    body = VALID + "        lift: {semi_axes: [0.5, 0.1]}\n"
+    with pytest.raises(ConfigError, match="semi_axes"):
+        RobotHydroConfig.from_yaml(_write(tmp_path, body))
+
+
+def test_rejects_nonpositive_semi_axes(tmp_path):
+    body = VALID + "        lift: {semi_axes: [0.5, 0.0, 0.1]}\n"
+    with pytest.raises(ConfigError, match="semi_axes"):
+        RobotHydroConfig.from_yaml(_write(tmp_path, body))

@@ -26,6 +26,16 @@ class AddedMassSpec:
 
 
 @dataclass(frozen=True)
+class LiftSpec:
+    """Ellipsoid Kutta + Magnus lift geometry for a link. Semi-axes are the equivalent
+    ellipsoid half-lengths (all > 0); coefficients follow MuJoCo's fluidcoef defaults."""
+
+    semi_axes: tuple[float, float, float]
+    c_kutta: float = 1.0
+    c_magnus: float = 1.0
+
+
+@dataclass(frozen=True)
 class LinkConfig:
     name: str
     volume: float
@@ -33,6 +43,7 @@ class LinkConfig:
     added_mass: AddedMassSpec
     linear_damping: tuple[float, ...]
     quadratic_damping: tuple[float, ...]
+    lift: LiftSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +74,7 @@ def _parse_link(raw: dict) -> LinkConfig:
     am = _parse_added_mass(name, raw.get("added_mass", {}))
     lin = _validate_damping(name, "linear_damping", raw.get("linear_damping", [0.0] * 6))
     quad = _validate_damping(name, "quadratic_damping", raw.get("quadratic_damping", [0.0] * 6))
+    lift = _parse_lift(name, raw["lift"]) if raw.get("lift") is not None else None
     return LinkConfig(
         name=name,
         volume=volume,
@@ -70,6 +82,21 @@ def _parse_link(raw: dict) -> LinkConfig:
         added_mass=am,
         linear_damping=tuple(float(v) for v in lin),
         quadratic_damping=tuple(float(v) for v in quad),
+        lift=lift,
+    )
+
+
+def _parse_lift(name: str, raw: dict) -> LiftSpec:
+    axes = raw.get("semi_axes")
+    if axes is None or len(axes) != 3:
+        raise ConfigError(f"link '{name}': lift semi_axes must have 3 elements")
+    axes = tuple(float(a) for a in axes)
+    if any(a <= 0.0 for a in axes):
+        raise ConfigError(f"link '{name}': lift semi_axes must all be > 0, got {axes}")
+    return LiftSpec(
+        semi_axes=axes,  # type: ignore[arg-type]
+        c_kutta=float(raw.get("c_kutta", 1.0)),
+        c_magnus=float(raw.get("c_magnus", 1.0)),
     )
 
 
