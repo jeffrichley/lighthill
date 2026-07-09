@@ -19,7 +19,6 @@ from __future__ import annotations
 import math
 
 import numpy as np
-
 from sim_validation.reference_planar_momentum import simulate_planar_momentum
 
 

@@ -21,11 +21,11 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import torch  # noqa: E402
-from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
-from isaaclab.physics import PhysicsCfg  # noqa: E402
+import torch
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.physics import PhysicsCfg
 
-from lighthill.apply_newton import NewtonArticulationView, _to_torch  # noqa: E402
+from lighthill.apply_newton import NewtonArticulationView, _to_torch
 
 SEG_LEN = 0.15      # m, segment length (along +X, the snake's long axis)
 SEG_W = 0.08        # m, segment width/height

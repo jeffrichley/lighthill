@@ -33,13 +33,10 @@ import sys
 # so we can import the PhysX gate's geometry + analytical reference helpers verbatim
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import torch  # noqa: E402
-from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
-from isaaclab.physics import PhysicsCfg  # noqa: E402
+import torch
 
 # identical rig geometry + analytical reference as the PhysX gate (single source of truth)
-from arm_swing_reaction import (  # noqa: E402
-    AMP,
+from arm_swing_reaction import (
     ANCHOR_ARM,
     ANCHOR_ARM_EFF,
     ANCHOR_BASE,
@@ -51,12 +48,14 @@ from arm_swing_reaction import (  # noqa: E402
     BASE_SCALE,
     DRIVE_DAMPING,
     DRIVE_STIFFNESS,
-    OMEGA,
     _pitch_of,
     _q_cmd,
     _reference,
 )
-from lighthill.apply_newton import NewtonArticulationView, _to_torch  # noqa: E402
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.physics import PhysicsCfg
+
+from lighthill.apply_newton import NewtonArticulationView, _to_torch
 
 # MJWarp (float32) integrates the stiff PD drive (kp=4000) stably only at a small step;
 # the standalone mjwarp_coupling_test proved dt=1.25ms holds it (5ms diverges to NaN).
@@ -82,7 +81,7 @@ def _stage(name, fn):
         out = fn()
         print(f"NEWTON_GATE:: {name} OK  {out if out is not None else ''}", flush=True)
         return out
-    except Exception as ex:  # noqa: BLE001
+    except Exception as ex:
         import traceback
         print(f"NEWTON_GATE:: {name} FAIL -> {ex!r}", flush=True)
         traceback.print_exc()

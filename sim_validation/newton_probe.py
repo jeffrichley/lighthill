@@ -70,11 +70,11 @@ def main() -> None:
             import warp as wp
             t = wp.to_torch(bp)
             print(f"PROBE:: wp.to_torch(body_pos_w) -> torch shape={tuple(t.shape)} dtype={t.dtype}", flush=True)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             print(f"PROBE:: wp.to_torch failed -> {ex!r}", flush=True)
         try:
             print(f"PROBE:: body_pos_w.torch() -> {tuple(bp.torch().shape)}", flush=True)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             print(f"PROBE:: .torch() n/a -> {type(ex).__name__}", flush=True)
 
         # (5) inertia / mass WRITE surface on the Newton articulation
