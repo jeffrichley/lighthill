@@ -3,7 +3,7 @@ name = "lighthill"
 version = "0.0.1"
 description = "GPU-vectorized per-link hydrodynamics for articulated underwater robots in NVIDIA Isaac Lab"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -27,7 +27,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -87,7 +86,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src"]
 extend-exclude = [
     ".venv",
@@ -117,7 +116,7 @@ skip-magic-trailing-comma = false
 docstring-code-format = true
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 files = [
     "src",
 ]
@@ -145,8 +144,8 @@ ignore_missing_imports = true
 
 # numpy is not imported by src at all -- mypy only reaches it transitively through torch's
 # stubs. numpy>=2's shipped .pyi uses PEP 695 `type` aliases that mypy rejects under
-# python_version="3.10" (kept low on purpose, to validate the source stays 3.10-compatible).
-# Skip descending into numpy's stubs (treat as Any) rather than raise the target version.
+# python_version="3.11" (PEP 695 needs 3.12; we pin to the lowest deployed runtime, the Isaac
+# env at 3.11). Skip descending into numpy's stubs (treat as Any) rather than raise the target.
 [[tool.mypy.overrides]]
 module = [
     "numpy",
