@@ -15,22 +15,24 @@ from importlib.resources import files
 from pathlib import Path
 
 from .coefficients import ResolvedCoefficients, resolve_coefficients
-from .config import AddedMassSpec, ConfigError, LinkConfig, RobotHydroConfig
+from .config import AddedMassSpec, ConfigError, LiftSpec, LinkConfig, RobotHydroConfig
 from .current import CurrentField, relative_velocity
 from .forces import (
     added_mass_coriolis,
     added_mass_residual,
     buoyancy_wrench,
     drag_wrench,
+    lift_wrench,
 )
 
 __version__ = "0.0.1"
 
 __all__ = [
     "__version__",
-    "RobotHydroConfig", "LinkConfig", "AddedMassSpec", "ConfigError",
+    "RobotHydroConfig", "LinkConfig", "AddedMassSpec", "LiftSpec", "ConfigError",
     "resolve_coefficients", "ResolvedCoefficients",
     "buoyancy_wrench", "drag_wrench", "added_mass_coriolis", "added_mass_residual",
+    "lift_wrench",
     "CurrentField", "relative_velocity", "example_config_path",
 ]
 
