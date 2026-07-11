@@ -51,10 +51,16 @@ class NewtonArticulationView:
         """(pos [E,B,3] world, quat [E,B,4] wxyz, vel [E,B,6] BODY-frame twist).
 
         Newton reports velocities in the world frame like PhysX; rotate into the body frame.
+
+        Convention: Isaac Lab (Newton, 3.0+) reports ``body_quat_w`` as ``(x, y, z, w)`` scalar-LAST
+        (documented on ``body_link_quat_w``), while lighthill's frame utilities use ``(w, x, y, z)``
+        scalar-FIRST. Convert once here so the whole hydro core sees wxyz. (Without this, every hydro
+        force is mis-rotated -- e.g. a straight snake reads as a 180deg-z flip -- which reverses the
+        emergent swim direction and leaks force out of the plane.)
         """
         d = self._asset.data  # type: ignore[attr-defined]
         pos = _to_torch(d.body_pos_w)
-        quat = _to_torch(d.body_quat_w)
+        quat = _to_torch(d.body_quat_w)[..., [3, 0, 1, 2]]  # (x,y,z,w) -> (w,x,y,z)
         lin_w = _to_torch(d.body_lin_vel_w)
         ang_w = _to_torch(d.body_ang_vel_w)
         lin_b = world_vec_to_body(lin_w, quat)
