@@ -18,10 +18,10 @@ class _MockData:
         e, b = quat_xyzw.shape[:2]
         self.body_pos_w = torch.zeros(e, b, 3)
         self.body_quat_w = quat_xyzw  # Isaac Lab convention: (x, y, z, w)
-        self.body_lin_vel_w = torch.zeros(e, b, 3)
-        self.body_ang_vel_w = torch.zeros(e, b, 3)
-        self.default_mass = torch.ones(e, b)
-        self.default_inertia = torch.eye(3).reshape(1, 1, 9).expand(e, b, 9).clone()
+        self.body_link_lin_vel_w = torch.zeros(e, b, 3)
+        self.body_link_ang_vel_w = torch.zeros(e, b, 3)
+        self.body_mass = torch.ones(e, b)
+        self.body_inertia = torch.eye(3).reshape(1, 1, 9).expand(e, b, 9).clone()
 
 
 class _MockAsset:

@@ -43,8 +43,9 @@ class NewtonArticulationView:
         self.num_envs = int(asset.num_instances)  # type: ignore[attr-defined]
         self.num_bodies = int(asset.num_bodies)  # type: ignore[attr-defined]
         # Protocol read attributes: per-body rigid mass [E,B] and principal inertia [E,B,3].
-        self.mass = _to_torch(d.default_mass).reshape(self.num_envs, self.num_bodies).clone()
-        inertia_flat = _to_torch(d.default_inertia).reshape(self.num_envs, self.num_bodies, 9)
+        # Use body_mass/body_inertia (default_mass/default_inertia are deprecated in Isaac Lab 4.0).
+        self.mass = _to_torch(d.body_mass).reshape(self.num_envs, self.num_bodies).clone()
+        inertia_flat = _to_torch(d.body_inertia).reshape(self.num_envs, self.num_bodies, 9)
         self.inertia_diag = inertia_flat[..., [0, 4, 8]].clone()
 
     def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
@@ -57,12 +58,17 @@ class NewtonArticulationView:
         scalar-FIRST. Convert once here so the whole hydro core sees wxyz. (Without this, every hydro
         force is mis-rotated -- e.g. a straight snake reads as a 180deg-z flip -- which reverses the
         emergent swim direction and leaks force out of the plane.)
+
+        Frame: use the LINK-frame velocity (``body_link_lin_vel_w``) to match the LINK-frame
+        ``body_pos_w``/``body_quat_w`` and the body-frame reference of the hydro coefficients
+        (``center_of_buoyancy``, added mass). ``body_lin_vel_w`` is shorthand for the CoM-frame
+        velocity; for an offset-CoM body that samples the wrong point (harmless when CoM == link).
         """
         d = self._asset.data  # type: ignore[attr-defined]
         pos = _to_torch(d.body_pos_w)
         quat = _to_torch(d.body_quat_w)[..., [3, 0, 1, 2]]  # (x,y,z,w) -> (w,x,y,z)
-        lin_w = _to_torch(d.body_lin_vel_w)
-        ang_w = _to_torch(d.body_ang_vel_w)
+        lin_w = _to_torch(d.body_link_lin_vel_w)
+        ang_w = _to_torch(d.body_link_ang_vel_w)
         lin_b = world_vec_to_body(lin_w, quat)
         ang_b = world_vec_to_body(ang_w, quat)
         return pos, quat, torch.cat([lin_b, ang_b], dim=-1)
