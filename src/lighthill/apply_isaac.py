@@ -33,10 +33,9 @@ class IsaacArticulationView:
         # Normalize shapes: a single-body RigidObject reports default_mass [E,1] and
         # default_inertia [E,9] (no body dim), while an Articulation reports [E,B] and
         # [E,B,9]. Reshape both to the [E,B,...] the Protocol promises.
-        # Use body_mass/body_inertia (default_mass/default_inertia deprecated in Isaac Lab 4.0).
-        self.mass = data.body_mass.reshape(self.num_envs, self.num_bodies).clone()
-        inertia_flat = data.body_inertia.reshape(self.num_envs, self.num_bodies, 9)
-        # body_inertia is a flattened 3x3 (9); the principal diagonal is indices 0,4,8.
+        self.mass = data.default_mass.reshape(self.num_envs, self.num_bodies).clone()
+        inertia_flat = data.default_inertia.reshape(self.num_envs, self.num_bodies, 9)
+        # default_inertia is a flattened 3x3 (9); the principal diagonal is indices 0,4,8.
         self.inertia_diag = inertia_flat[..., [0, 4, 8]].clone()
 
     def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
@@ -44,21 +43,12 @@ class IsaacArticulationView:
 
         Isaac reports velocities in the world frame; the kernels want body-frame
         twist, so rotate both linear and angular parts into the body frame.
-
-        Convention (Isaac Lab 3.0+): ``body_quat_w`` is ``(x, y, z, w)`` scalar-LAST (global across
-        all data classes; see ``base_articulation_data.py``), so convert to lighthill's ``(w, x, y, z)``
-        -- same fix as the Newton adapter. Use the LINK-frame velocity to match the link-frame
-        pose and the body-referenced hydro coefficients.
-
-        NOTE: UNVERIFIED against a live PhysX sim (no PhysX available in the current environment).
-        The change follows the documented Isaac Lab 3.0 convention (older Isaac Lab was wxyz, which is
-        why the arm-swing validation passed pre-3.0). Re-verify with a PhysX run before relying on it.
         """
         data = self._asset.data  # type: ignore[attr-defined]
         pos = data.body_pos_w
-        quat = data.body_quat_w[..., [3, 0, 1, 2]]  # (x,y,z,w) -> (w,x,y,z)
-        lin_w = data.body_link_lin_vel_w  # [E,B,3] world, link frame
-        ang_w = data.body_link_ang_vel_w  # [E,B,3] world
+        quat = data.body_quat_w
+        lin_w = data.body_lin_vel_w  # [E,B,3] world
+        ang_w = data.body_ang_vel_w  # [E,B,3] world
         lin_b = world_vec_to_body(lin_w, quat)
         ang_b = world_vec_to_body(ang_w, quat)
         vel = torch.cat([lin_b, ang_b], dim=-1)  # [E,B,6]
