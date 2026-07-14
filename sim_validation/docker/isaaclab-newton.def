@@ -1,0 +1,88 @@
+Bootstrap: docker
+From: nvidia/cuda:12.8.0-devel-ubuntu22.04
+
+# Apptainer image for the kit-less Isaac Lab Newton (MJWarp) backend, headless.
+# Rebuilds the validated `isaaclab-newton` Docker image on HPC (no official NGC
+# container exists for this path). Pins the EXACT versions from the built image
+# (verified via `docker image inspect` + `pip freeze`, 2026-07-14), NOT the stale
+# Dockerfile comment. See docs/superpowers/plans/2026-07-14-hpc-isaaclab-newton-port.md
+# (anguilla) and isaaclab-newton.lock.txt (this dir) for provenance.
+#
+# Build (from THIS directory, so %files finds the lock):
+#   cd /p/work/jrichley/build
+#   APPTAINER_CACHEDIR=/p/work/jrichley/.apptainer_cache \
+#   APPTAINER_TMPDIR=/p/work/jrichley/.apptainer_tmp \
+#   apptainer build --fakeroot isaac-newton.sif isaaclab-newton.def
+# Run (GPU node):
+#   apptainer exec --nv -B <repo>:/work isaac-newton.sif bash -lc \
+#     'cd /work && /opt/IsaacLab/isaaclab.sh -p scripts/gate_env_smoke.py --headless ...'
+
+%files
+    isaaclab-newton.lock.txt /opt/isaaclab-newton.lock.txt
+
+%post
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y --no-install-recommends \
+        git curl build-essential cmake ca-certificates && rm -rf /var/lib/apt/lists/*
+
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="/root/.local/bin:${PATH}"
+
+    # Pin the EXACT IsaacLab commit. A full clone (not --depth 1 -b develop) is
+    # required to checkout a specific SHA.
+    cd /opt
+    git clone https://github.com/isaac-sim/IsaacLab.git
+    cd /opt/IsaacLab
+    git checkout 72cb04bfa9e2d3730e6c098439e72b359b6c0ee8
+
+    uv venv --python 3.12 --seed env_isaaclab
+    . env_isaaclab/bin/activate
+    uv pip install --upgrade pip
+    uv pip install -U torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+
+    # Installs Isaac Lab extensions + Newton/MJWarp. May resolve a newer Newton
+    # from develop, so we force the validated commit immediately after.
+    echo y | ./isaaclab.sh -i
+    uv pip install "newton @ git+https://github.com/newton-physics/newton.git@c7ae7c7648cd0717df39e5c94b95d5a02c997320"
+
+    # Build-time PARITY GATE: fail the build loudly if the resolved stack drifts
+    # from the validated 4060 Ti image, so the A100 numbers are comparable.
+    # (heredoc body + terminator MUST stay at column 0: `<<'PY'` is literal.)
+    python - <<'PY'
+import importlib.metadata as md
+want = {
+    "torch": "2.11.0+cu128",
+    "torchvision": "0.26.0+cu128",
+    "warp-lang": "1.15.0.dev20260626",
+    "mujoco": "3.8.1",
+    "mujoco-warp": "3.8.1",
+}
+bad = []
+for pkg, exp in want.items():
+    try:
+        got = md.version(pkg)
+    except md.PackageNotFoundError:
+        got = "MISSING"
+    if got != exp:
+        bad.append(f"  {pkg}: got {got!r}, want {exp!r}")
+import newton  # noqa: F401  (import must succeed)
+import isaaclab  # noqa: F401
+if bad:
+    raise SystemExit("PARITY GATE FAILED - resolved versions drifted:\n" + "\n".join(bad))
+print("PARITY GATE OK - stack matches the validated image.")
+PY
+
+%environment
+    export PATH="/opt/IsaacLab/env_isaaclab/bin:${PATH}"
+    export ISAACLAB_HOME=/opt/IsaacLab
+
+%labels
+    isaaclab.commit 72cb04bfa9e2d3730e6c098439e72b359b6c0ee8
+    newton.commit c7ae7c7648cd0717df39e5c94b95d5a02c997320
+    torch 2.11.0+cu128
+    python 3.12.13
+    purpose kit-less Isaac Lab Newton (MJWarp) headless, HPC A100
+
+%runscript
+    exec "$@"
