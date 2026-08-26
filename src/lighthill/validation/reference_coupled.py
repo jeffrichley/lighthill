@@ -283,4 +283,5 @@ def _quat_of(rot: Tensor) -> Tensor:
         y = (m[1, 2] + m[2, 1]) / s
         z = 0.25 * s
     q = torch.stack([w, x, y, z])
-    return q / q.norm()
+    result: torch.Tensor = q / q.norm()
+    return result

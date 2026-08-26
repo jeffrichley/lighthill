@@ -31,7 +31,7 @@ def _to_torch(a: object) -> Tensor:
         return a
     import warp as wp
 
-    return wp.to_torch(a)
+    return torch.as_tensor(wp.to_torch(a))
 
 
 class NewtonArticulationView:

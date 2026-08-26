@@ -77,7 +77,7 @@ def simulate_planar_added_mass(
     P0 = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=_F64)
     e2 = torch.tensor([0.0, 0.0, 1.0], dtype=_F64)
 
-    rec: dict[str, list] = {k: [] for k in
+    rec: dict[str, list[float]] = {k: [] for k in
                             ("base_x", "base_z", "base_pitch", "omega0", "q", "px", "pz", "ly")}
     for step in range(steps):
         t = step * dt

@@ -15,6 +15,16 @@ _AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
 
 @dataclass
 class ResolvedCoefficients:
+    """Per-link hydro coefficients stacked into batched tensors for the sim.
+
+    Produced by :func:`resolve_coefficients` from a :class:`RobotHydroConfig`.
+    Every field is indexed by link (leading dim ``N`` = number of links) so the
+    runtime can broadcast across environments without per-link Python loops:
+    the 6x6 added-mass and damping matrices, per-link displaced ``volume`` and
+    ``center_of_buoyancy``, the scalar fluid ``density``, and the ordered link
+    ``names`` for diagnostics.
+    """
+
     added_mass: Tensor          # [N,6,6]
     linear_damping: Tensor      # [N,6,6]
     quadratic_damping: Tensor   # [N,6,6]
@@ -44,6 +54,13 @@ def cylinder_added_mass(radius: float, length: float, axis: str, density: float,
 
 def sphere_added_mass(radius: float, density: float,
                       dtype: torch.dtype = torch.float32) -> Tensor:
+    """Added-mass matrix of a sphere: isotropic translational, zero rotational.
+
+    A sphere entrains half its displaced-fluid volume as translational added
+    mass in every direction (``m = (2/3)*pi*rho*R^3 = 0.5 * rho * (4/3)*pi*R^3``)
+    and, by symmetry, adds no rotational added inertia. Returns the 6x6 diagonal
+    ``diag(m, m, m, 0, 0, 0)``.
+    """
     m = (2.0 / 3.0) * math.pi * density * radius**3
     return torch.diag(torch.tensor([m, m, m, 0.0, 0.0, 0.0], dtype=dtype))
 
@@ -65,6 +82,14 @@ def _resolve_added_mass(spec: AddedMassSpec, density: float, dtype: torch.dtype)
 
 def resolve_coefficients(config: RobotHydroConfig,
                          dtype: torch.dtype = torch.float32) -> ResolvedCoefficients:
+    """Compile a robot's per-link configs into batched coefficient tensors.
+
+    Walks the config's links in order, resolving each link's added-mass spec
+    (matrix / cylinder / sphere / box) and expanding its 6- or 36-element
+    damping vectors into full 6x6 matrices, then stacks everything along a
+    leading per-link dimension so the runtime consumes ready-to-broadcast
+    tensors. Link order is preserved and echoed in the returned ``names``.
+    """
     links: tuple[LinkConfig, ...] = config.links
     added = torch.stack([_resolve_added_mass(link.added_mass, config.density, dtype) for link in links])
     lin = torch.stack([_to_6x6(link.linear_damping, dtype) for link in links])

@@ -104,10 +104,22 @@ select = [
     # TODO discipline: a TODO must reference a tracking issue (a digit in the
     # body satisfies TD003). Bare ``# TODO:`` comments rot.
     "TD003",
+    "D",
 ]
 ignore = [
     "E501",
+    # Google convention documents ctor args in the class docstring and treats
+    # magic methods as self-evident — no docstring required on __init__ (D107)
+    # or dunders (D105).
+    "D105",
+    "D107",
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -117,12 +129,10 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
+strict = true
 files = [
     "src",
 ]
-warn_unused_ignores = true
-no_implicit_optional = true
-check_untyped_defs = true
 
 # lighthill lazy-imports heavy GPU/sim deps (torch, Isaac Lab/Sim, Newton/Warp) that
 # aren't present in the lint/test environment. Keep the rest of the package

@@ -2,7 +2,8 @@
 
 This is the on-CPU reference used to validate the force law before the Isaac Lab
 glue exists. It is intentionally minimal: one body, semi-implicit Euler, body-frame
-twist. It is NOT the production sim (that is Isaac Lab, Plan B)."""
+twist. It is NOT the production sim (that is Isaac Lab, Plan B).
+"""
 
 from __future__ import annotations
 
@@ -19,6 +20,15 @@ from ..frames import quat_to_rotation_matrix
 
 @dataclass
 class Body:
+    """Full hydrodynamic description of the single rigid body the reference sim integrates.
+
+    Bundles everything :func:`simulate` needs for one body: rigid ``mass`` and
+    principal ``inertia``, displaced ``volume`` and buoyancy center ``cob`` (both
+    feeding the buoyancy wrench), the 6x6 ``added_mass`` and linear/quadratic
+    damping matrices, and the fluid ``density``. Unlike the batched runtime
+    coefficients this is a plain single-body record used only for CPU validation.
+    """
+
     mass: float
     inertia: tuple[float, float, float]
     volume: float
@@ -30,6 +40,12 @@ class Body:
 
 
 def terminal_velocity_quadratic(force: float, d_quad: float) -> float:
+    """Closed-form terminal speed under a constant force and quadratic drag.
+
+    At terminal velocity the driving ``force`` balances the quadratic drag
+    ``d_quad * v^2``, giving ``v = sqrt(force / d_quad)``. Used as an analytic
+    ground truth the integrator's steady state is checked against.
+    """
     return math.sqrt(force / d_quad)
 
 
@@ -54,7 +70,8 @@ def _integrate_quat(quat: Tensor, omega_body: Tensor, dt: float) -> Tensor:
     omega_quat = torch.cat([torch.zeros(1), omega_body])
     dq = 0.5 * _quat_mul(quat, omega_quat)
     q = quat + dq * dt
-    return q / q.norm()
+    normalized: Tensor = q / q.norm()
+    return normalized
 
 
 def simulate(
@@ -68,6 +85,20 @@ def simulate(
     vel0: Tensor | None = None,
     gravity: float = GRAVITY,
 ) -> dict[str, Tensor]:
+    """Integrate one body under the full Fossen force law for ``steps`` steps.
+
+    Semi-implicit (symplectic) Euler on a single rigid body: each step sums
+    buoyancy, gravity (weight rotated into the body frame), linear+quadratic
+    drag, the added-mass Coriolis term, and any constant ``external_force_body``,
+    then accelerates the twist through the combined rigid-plus-added-mass matrix.
+    Position advances in the world frame and orientation via quaternion
+    kinematics with renormalization. Optional ``quat0``/``omega0``/``vel0`` set
+    the initial pose and twist.
+
+    Returns:
+        A dict with stacked per-step histories under keys ``"pos"`` ([steps,3]),
+        ``"quat"`` ([steps,4]), and ``"twist"`` ([steps,6]).
+    """
     mass_matrix = _rigid_body_mass_matrix(body) + body.added_mass
     minv = torch.linalg.inv(mass_matrix)
     cob = torch.tensor(body.cob, dtype=torch.float32)
