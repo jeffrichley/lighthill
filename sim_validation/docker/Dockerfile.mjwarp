@@ -1,0 +1,6 @@
+# MuJoCo-Warp (Newton's solver) on GPU, for the lighthill coupling cross-check.
+# Build:  docker build -f sim_validation/docker/Dockerfile.mjwarp -t lighthill-mjwarp sim_validation/docker
+# Run:    docker run --rm --gpus all -v <repo>:/work -w /work lighthill-mjwarp \
+#             python sim_validation/mjwarp_coupling_test.py
+FROM python:3.12
+RUN pip install --no-cache-dir mujoco mujoco-warp numpy

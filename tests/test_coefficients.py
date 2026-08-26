@@ -7,7 +7,7 @@ from lighthill.coefficients import (
     resolve_coefficients,
     sphere_added_mass,
 )
-from lighthill.config import AddedMassSpec, LinkConfig, RobotHydroConfig
+from lighthill.config import AddedMassSpec, LiftSpec, LinkConfig, RobotHydroConfig
 
 
 def _link(**kw):
@@ -70,3 +70,28 @@ def test_zero_length_cylinder_resolves_to_zero_added_mass():
         added_mass=AddedMassSpec(kind="cylinder", radius=0.02, length=0.0, axis="z")),))
     rc = resolve_coefficients(cfg)
     assert torch.allclose(rc.added_mass[0], torch.zeros(6, 6))
+
+
+def test_lift_spec_resolves_semi_axes_and_coef():
+    cfg = RobotHydroConfig(links=(_link(
+        lift=LiftSpec(semi_axes=(0.5, 0.1, 0.1), c_kutta=0.8, c_magnus=0.4)),))
+    rc = resolve_coefficients(cfg)
+    assert rc.lift_semi_axes.shape == (1, 3)
+    assert rc.lift_coef.shape == (1, 2)
+    assert torch.allclose(rc.lift_semi_axes[0], torch.tensor([0.5, 0.1, 0.1]))
+    assert torch.allclose(rc.lift_coef[0], torch.tensor([0.8, 0.4]))
+
+
+def test_no_lift_spec_resolves_to_zero_coef():
+    # links without a lift spec must contribute no lift (coefficients zeroed), so existing
+    # configs are unchanged and semi-axes stay finite/positive (never divide by zero).
+    cfg = RobotHydroConfig(links=(_link(),))
+    rc = resolve_coefficients(cfg)
+    assert torch.allclose(rc.lift_coef[0], torch.zeros(2))
+    assert (rc.lift_semi_axes[0] > 0).all()
+
+
+def test_lift_coef_defaults_to_unity():
+    cfg = RobotHydroConfig(links=(_link(lift=LiftSpec(semi_axes=(0.5, 0.1, 0.1))),))
+    rc = resolve_coefficients(cfg)
+    assert torch.allclose(rc.lift_coef[0], torch.tensor([1.0, 1.0]))

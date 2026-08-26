@@ -48,7 +48,7 @@ The implementation plan is generated from that spec.
 | | |
 |---|---|
 | Stage | Pre-alpha (name reservation + scaffold) |
-| Python | ≥ 3.10 |
+| Python | ≥ 3.11 |
 | License | MIT |
 
 ## Name

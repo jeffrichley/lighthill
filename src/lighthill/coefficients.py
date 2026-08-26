@@ -30,6 +30,8 @@ class ResolvedCoefficients:
     quadratic_damping: Tensor   # [N,6,6]
     volume: Tensor              # [N]
     center_of_buoyancy: Tensor  # [N,3]
+    lift_semi_axes: Tensor      # [N,3] ellipsoid half-lengths (unit placeholder when lift off)
+    lift_coef: Tensor           # [N,2] (C_kutta, C_magnus); zeroed when a link has no lift
     density: float
     names: tuple[str, ...]
 
@@ -94,8 +96,16 @@ def resolve_coefficients(config: RobotHydroConfig,
     quad = torch.stack([_to_6x6(link.quadratic_damping, dtype) for link in links])
     vol = torch.tensor([link.volume for link in links], dtype=dtype)
     cob = torch.tensor([link.center_of_buoyancy for link in links], dtype=dtype)
+    # Lift is opt-in per link. Links without a LiftSpec get zero coefficients (no lift) and a
+    # unit-sphere placeholder for the semi-axes, so the kernel never divides by a zero axis.
+    semi = torch.tensor(
+        [link.lift.semi_axes if link.lift else (1.0, 1.0, 1.0) for link in links], dtype=dtype)
+    lift_coef = torch.tensor(
+        [(link.lift.c_kutta, link.lift.c_magnus) if link.lift else (0.0, 0.0) for link in links],
+        dtype=dtype)
     return ResolvedCoefficients(
         added_mass=added, linear_damping=lin, quadratic_damping=quad,
         volume=vol, center_of_buoyancy=cob,
+        lift_semi_axes=semi, lift_coef=lift_coef,
         density=config.density, names=tuple(link.name for link in links),
     )

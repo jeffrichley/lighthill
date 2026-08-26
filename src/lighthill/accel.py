@@ -7,16 +7,7 @@ from torch import Tensor
 
 
 class AccelerationFilter:
-    """Estimate per-body acceleration for the added-mass residual (Munk) term.
-
-    Body acceleration is not read directly from the sim, so it is recovered by
-    backward-differencing the body twist between steps and smoothing it with a
-    first-order exponential moving average. The EMA (``alpha`` ~ 0.08) tames the
-    step-to-step noise that raw finite differencing injects into the residual
-    added-mass wrench, at the cost of a small lag. State is per environment and
-    per body so a reset can clear one environment without disturbing the rest.
-    """
-
+    """Finite-difference + low-pass body-acceleration estimator over [E, B, 6] twists."""
     def __init__(self, shape: tuple[int, ...], alpha: float = 0.08) -> None:
         self.alpha = alpha
         self._shape = shape

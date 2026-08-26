@@ -1,0 +1,94 @@
+"""Newton (Isaac Lab 3.0) adapter for the `ArticulationView` Protocol.
+
+Implements the Protocol over an ``isaaclab_newton`` Articulation / RigidObject.
+Newton-only (needs Isaac Lab 3.0 + Newton).
+
+This is the sibling of ``apply_isaac.py`` (PhysX). The hydro core is unchanged; only this
+adapter differs, and only in three spots:
+
+* ``.data.*`` reads are warp-backed ``ProxyArray`` objects, not torch tensors, so each is
+  converted with ``wp.to_torch`` to the ``[E, B, *]`` torch shape the kernels expect.
+* the inertia write goes through the articulation's own ``set_masses`` / ``set_inertias``
+  (Newton has no ``root_physx_view``).
+* the wrench write -- ``set_external_force_and_torque(is_global=True)`` + ``write_data_to_sim``
+  -- is **identical** to PhysX; Isaac Lab 3.0's multi-backend Articulation maps it onto
+  Newton's ``xfrc`` internally.
+
+Only ``set_body_inertias`` folds isotropic/angular added mass into the rigid mass/inertia the
+way the PhysX path does. On MuJoCo/Newton this could instead be pushed entirely through the
+residual xfrc wrench; that is a deliberate follow-up choice, not required for correctness.
+"""
+
+from __future__ import annotations
+
+import torch
+from torch import Tensor
+
+from .frames import world_vec_to_body
+
+
+def _to_torch(a: object) -> Tensor:
+    """Isaac Lab Newton ``.data.*`` reads are warp-backed ProxyArrays; convert to torch."""
+    if isinstance(a, torch.Tensor):
+        return a
+    import warp as wp
+
+    return torch.as_tensor(wp.to_torch(a))
+
+
+class NewtonArticulationView:
+    """Wrap an ``isaaclab_newton`` Articulation/RigidObject as a lighthill ``ArticulationView``."""
+
+    def __init__(self, asset: object) -> None:
+        self._asset = asset
+        d = asset.data  # type: ignore[attr-defined]
+        self.num_envs = int(asset.num_instances)  # type: ignore[attr-defined]
+        self.num_bodies = int(asset.num_bodies)  # type: ignore[attr-defined]
+        # Protocol read attributes: per-body rigid mass [E,B] and principal inertia [E,B,3].
+        # Use body_mass/body_inertia (default_mass/default_inertia are deprecated in Isaac Lab 4.0).
+        self.mass = _to_torch(d.body_mass).reshape(self.num_envs, self.num_bodies).clone()
+        inertia_flat = _to_torch(d.body_inertia).reshape(self.num_envs, self.num_bodies, 9)
+        self.inertia_diag = inertia_flat[..., [0, 4, 8]].clone()
+
+    def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
+        """(pos [E,B,3] world, quat [E,B,4] wxyz, vel [E,B,6] BODY-frame twist).
+
+        Newton reports velocities in the world frame like PhysX; rotate into the body frame.
+
+        Convention: Isaac Lab (Newton, 3.0+) reports ``body_quat_w`` as ``(x, y, z, w)`` scalar-LAST
+        (documented on ``body_link_quat_w``), while lighthill's frame utilities use ``(w, x, y, z)``
+        scalar-FIRST. Convert once here so the whole hydro core sees wxyz. (Without this, every hydro
+        force is mis-rotated -- e.g. a straight snake reads as a 180deg-z flip -- which reverses the
+        emergent swim direction and leaks force out of the plane.)
+
+        Frame: use the LINK-frame velocity (``body_link_lin_vel_w``) to match the LINK-frame
+        ``body_pos_w``/``body_quat_w`` and the body-frame reference of the hydro coefficients
+        (``center_of_buoyancy``, added mass). ``body_lin_vel_w`` is shorthand for the CoM-frame
+        velocity; for an offset-CoM body that samples the wrong point (harmless when CoM == link).
+        """
+        d = self._asset.data  # type: ignore[attr-defined]
+        pos = _to_torch(d.body_pos_w)
+        quat = _to_torch(d.body_quat_w)[..., [3, 0, 1, 2]]  # (x,y,z,w) -> (w,x,y,z)
+        lin_w = _to_torch(d.body_link_lin_vel_w)
+        ang_w = _to_torch(d.body_link_ang_vel_w)
+        lin_b = world_vec_to_body(lin_w, quat)
+        ang_b = world_vec_to_body(ang_w, quat)
+        return pos, quat, torch.cat([lin_b, ang_b], dim=-1)
+
+    def set_external_wrench(self, wrench_world: Tensor) -> None:
+        """Apply a per-body WORLD-frame wrench [E,B,6]=[F(3),M(3)] (mapped to Newton xfrc)."""
+        forces = wrench_world[..., 0:3].contiguous()
+        torques = wrench_world[..., 3:6].contiguous()
+        self._asset.set_external_force_and_torque(forces, torques, is_global=True)  # type: ignore[attr-defined]
+        self._asset.write_data_to_sim()  # type: ignore[attr-defined]
+
+    def set_body_inertias(self, mass: Tensor, inertia_diag: Tensor) -> None:
+        """Set per-body scalar mass [E,B] and principal inertia [E,B,3] via Newton's own setters."""
+        self._asset.set_masses(  # type: ignore[attr-defined]
+            masses=mass.reshape(self.num_envs, self.num_bodies).contiguous())
+        flat = torch.zeros(self.num_envs, self.num_bodies, 9,
+                           device=inertia_diag.device, dtype=inertia_diag.dtype)
+        flat[..., 0] = inertia_diag[..., 0]
+        flat[..., 4] = inertia_diag[..., 1]
+        flat[..., 8] = inertia_diag[..., 2]
+        self._asset.set_inertias(inertias=flat.contiguous())  # type: ignore[attr-defined]

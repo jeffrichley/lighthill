@@ -48,23 +48,23 @@ class FakeArticulation:
         self.inertia_diag = torch.ones(num_envs, num_bodies, 3)
 
     def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
-        """Return the current (pos, quat, twist) tensors held in memory."""
+        """Return the fake (pos, quat, twist)."""
         return self._pos, self._quat, self._vel
 
     def set_external_wrench(self, wrench_world: Tensor) -> None:
-        """Record the applied wrench so a test can assert against it."""
+        """Record the wrench for assertions."""
         self.last_wrench = wrench_world.clone()
 
     def set_body_inertias(self, mass: Tensor, inertia_diag: Tensor) -> None:
-        """Store augmented mass/inertia written by the hydrodynamics init step."""
+        """Record the effective mass and inertia for assertions."""
         self.mass = mass.clone()
         self.inertia_diag = inertia_diag.clone()
 
     # test helpers
     def set_body_velocity(self, vel: Tensor) -> None:
-        """Inject a body twist [E,B,6] so a test can drive drag/Coriolis terms."""
+        """Test helper: overwrite body twists."""
         self._vel = vel.clone()
 
     def set_body_quat(self, quat: Tensor) -> None:
-        """Inject a body orientation [E,B,4] wxyz to exercise frame rotations."""
+        """Test helper: overwrite body quaternions."""
         self._quat = quat.clone()
