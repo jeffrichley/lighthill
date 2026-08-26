@@ -26,6 +26,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main() -> None:
+    """Launch the task and print per-step probe output."""
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     with launch_simulation(env_cfg, args_cli):
         env_cfg.scene.num_envs = args_cli.num_envs

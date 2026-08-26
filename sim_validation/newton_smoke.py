@@ -1,4 +1,6 @@
-"""Minimal proof that Isaac Lab runs a physics sim on the Newton (MJWarp) backend, headless
+"""Minimal Newton-backend smoke run.
+
+Proof that Isaac Lab runs a physics sim on the Newton (MJWarp) backend, headless
 and kit-less (no Isaac Sim). Mirrors zero_agent's launcher setup but prints per-step output
 and force-exits (Isaac-style teardown can hang).
 
@@ -28,6 +30,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main() -> None:
+    """Run the smoke task and print per-step output."""
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     with launch_simulation(env_cfg, args_cli):
         env_cfg.scene.num_envs = args_cli.num_envs

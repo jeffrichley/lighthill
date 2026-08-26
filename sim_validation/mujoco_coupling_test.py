@@ -35,6 +35,7 @@ ARM_DIAG = "0.012820 0.012820 0.000640"
 
 
 def build_xml(*, driven: bool) -> str:
+    """Build the 2-body MJCF, optionally with a position-driven hinge."""
     damping = 'damping="200"' if driven else 'damping="0"'
     actuator = '<actuator><position joint="hinge" kp="4000"/></actuator>' if driven else ""
     # implicitfast handles the stiff PD drive/damping (RK4 goes unstable); free joint fine on RK4
@@ -65,6 +66,7 @@ def _pitch(qpos_quat: np.ndarray) -> float:
 
 
 def run_freejoint(steps: int = 2000) -> None:
+    """Run the free-joint coast on native MuJoCo and report conservation."""
     model = mujoco.MjModel.from_xml_string(build_xml(driven=False))
     data = mujoco.MjData(model)
     data.qvel[6] = 2.0  # hinge initial rate (freejoint occupies qvel[0:6])
@@ -91,6 +93,7 @@ def run_freejoint(steps: int = 2000) -> None:
 
 
 def run_driven(steps: int = 3200) -> None:
+    """Run the driven-hinge case on native MuJoCo and report the pose ratio."""
     model = mujoco.MjModel.from_xml_string(build_xml(driven=True))
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)

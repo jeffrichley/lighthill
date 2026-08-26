@@ -1,4 +1,6 @@
-"""Decisive fork: is the base pose under-rotation caused by the JOINT DRIVE, or by the
+"""Decisive fork: joint drive vs floating articulation root.
+
+Is the base pose under-rotation caused by the JOINT DRIVE, or by the
 floating articulation ROOT itself?
 
 The arm-swing gate showed the free base's reported orientation under-integrates its own
@@ -37,6 +39,7 @@ ARM_POS0 = (0.0, 0.0, -0.40)
 
 
 def run(dt: float = DT, steps: int = STEPS) -> None:
+    """Coast the free-joint articulation and report base pose vs velocity buffer."""
     from isaaclab.app import AppLauncher
 
     app_launcher = AppLauncher(headless=True)

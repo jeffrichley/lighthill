@@ -45,6 +45,7 @@ def _stage(name, fn):
 
 
 def main() -> None:
+    """Run the single-segment hydro force probe on Newton."""
     from lighthill import RobotHydroConfig, example_config_path, resolve_coefficients
     from lighthill.apply import UnderwaterHydrodynamics
     from lighthill.apply_newton import NewtonArticulationView

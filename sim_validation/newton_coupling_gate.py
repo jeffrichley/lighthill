@@ -89,6 +89,7 @@ def _stage(name, fn):
 
 
 def main() -> None:
+    """Run the Newton coupling gate scenario and print the verdict."""
     import isaaclab.sim as sim_utils
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import Articulation, ArticulationCfg

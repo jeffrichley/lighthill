@@ -109,12 +109,15 @@ def _finite_diff_traj(q_list, dt):
 
 
 def _gate_coeffs():
-    """2-link coeffs for the gate: added mass KEPT (the inertial coupling under test),
+    """2-link coeffs for the gate.
+
+    Added mass KEPT (the inertial coupling under test),
     buoyancy + drag ZEROED. The gate isolates the inertial (added-mass + rigid)
     vehicle<->arm coupling -- the headline claim. Drag is a separate, already-certified
     force law (drag_terminal/free_decay at <0.5%); including it would confound the
     coupling test with drag-through-articulation fidelity. Same isolation discipline as
-    the single-body scenarios pinning attitude / zeroing CoB."""
+    the single-body scenarios pinning attitude / zeroing CoB.
+    """
     import torch
 
     from lighthill import RobotHydroConfig, example_config_path, resolve_coefficients

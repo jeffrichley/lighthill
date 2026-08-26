@@ -1,4 +1,6 @@
-"""Referee the coupled added-mass case: does lighthill's fold+EMA `reference_coupled` agree
+"""Referee the coupled added-mass case.
+
+Does lighthill's fold+EMA `reference_coupled` agree
 with the INDEPENDENT momentum reference (reference_coupled_addedmass)? Same gate scenario, same
 anisotropic added mass, same prescribed arm swing. If they agree, the fold+EMA routing is
 validated for the coupled case (so the gate's ~21% sim-vs-reference gap is the sim's explicit
@@ -58,6 +60,7 @@ def _momentum_peak(added0, added1) -> float:
 
 
 def main() -> None:
+    """Compare the fold+EMA reference against the independent momentum reference."""
     # planar (Xu, Zw, Mq) picked from the 6x6 diagonals: x-index 0, z-index 2, pitch-index 4
     p0 = (AM0[0], AM0[2], AM0[4])
     p1 = (AM1[0], AM1[2], AM1[4])

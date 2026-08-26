@@ -41,6 +41,7 @@ DRIVE_DAMPING = 200.0
 
 
 def run(dt: float = DT, steps: int | None = None) -> None:
+    """Coast the body and report decay against the analytic drag solution."""
     if steps is None:
         steps = int(COAST_TIME / dt)
 

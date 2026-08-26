@@ -37,6 +37,7 @@ ANCHOR_ARM_EFF = (0.0, 0.0, 0.125)
 
 
 def main() -> None:
+    """Referee the recorded arm-swing run against the analytic reference."""
     path = os.path.join(os.path.dirname(__file__), os.pardir, "_armswing_run.json")
     with open(path) as f:
         d = json.load(f)

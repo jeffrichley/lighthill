@@ -1,5 +1,6 @@
-"""Maximal-coordinate coupling test: does dropping ArticulationRootAPI fix the free
-base's pose under-integration?
+"""Maximal-coordinate coupling test.
+
+Does dropping ArticulationRootAPI fix the free base's pose under-integration?
 
 Same two rigid bodies + revolute joint as the free-joint articulation test, but with
 NO ArticulationRootAPI -- so PhysX simulates them as two independent maximal-coordinate
@@ -41,6 +42,7 @@ ARM_POS0 = (0.0, 0.0, -0.045 - 0.125)  # = (0,0,-0.170)
 
 
 def run(dt: float = DT, steps: int = STEPS) -> None:
+    """Coast the maximal-coordinate pair and report the pose-integration ratio."""
     from isaaclab.app import AppLauncher
 
     app_launcher = AppLauncher(headless=True)

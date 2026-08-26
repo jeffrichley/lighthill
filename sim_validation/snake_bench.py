@@ -1,4 +1,6 @@
-"""Throughput benchmark: an N-link serpentine swimmer with lighthill hydro on the Newton
+"""Throughput benchmark for the N-link swimmer on Newton.
+
+An N-link serpentine swimmer with lighthill hydro on the Newton
 (MJWarp) backend, across E parallel GPU-replicated envs. Answers the one decision-critical
 unknown for the CL study: env-steps/sec vs env count on this GPU (and, later, per node).
 
@@ -108,6 +110,7 @@ def _snake_config(n: int):
 
 
 def main() -> None:
+    """Run the throughput sweep and print env-steps/s."""
     import isaaclab.sim as sim_utils
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import ArticulationCfg
