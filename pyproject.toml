@@ -3,7 +3,7 @@ name = "lighthill"
 version = "0.0.1"
 description = "GPU-vectorized per-link hydrodynamics for articulated underwater robots in NVIDIA Isaac Lab"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -27,7 +27,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -79,11 +78,15 @@ dev = [
     "vulture>=2.13",
     # Type stubs for PyYAML (torch stubs are bundled with torch itself).
     "types-PyYAML>=6.0",
+    # Verification-only: the independent momentum reference (sim_validation/
+    # reference_planar_momentum.py) and the MuJoCo cross-check scripts use numpy. Kept OUT of
+    # the runtime deps so the shipped plugin stays torch-only / GPU-resident (no CPU round-trips).
+    "numpy>=1.26",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src"]
 extend-exclude = [
     ".venv",
@@ -113,7 +116,7 @@ skip-magic-trailing-comma = false
 docstring-code-format = true
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 files = [
     "src",
 ]
@@ -121,8 +124,8 @@ warn_unused_ignores = true
 no_implicit_optional = true
 check_untyped_defs = true
 
-# lighthill lazy-imports heavy GPU/sim deps (torch, Isaac Lab/Sim) that aren't
-# present in the lint/test environment. Keep the rest of the package
+# lighthill lazy-imports heavy GPU/sim deps (torch, Isaac Lab/Sim, Newton/Warp) that
+# aren't present in the lint/test environment. Keep the rest of the package
 # type-checkable without them installed.
 [[tool.mypy.overrides]]
 module = [
@@ -134,8 +137,22 @@ module = [
     "isaacsim.*",
     "omni",
     "omni.*",
+    "warp",
+    "warp.*",
 ]
 ignore_missing_imports = true
+
+# numpy is not imported by src at all -- mypy only reaches it transitively through torch's
+# stubs. numpy>=2's shipped .pyi uses PEP 695 `type` aliases that mypy rejects under
+# python_version="3.11" (PEP 695 needs 3.12; we pin to the lowest deployed runtime, the Isaac
+# env at 3.11). Skip descending into numpy's stubs (treat as Any) rather than raise the target.
+[[tool.mypy.overrides]]
+module = [
+    "numpy",
+    "numpy.*",
+]
+follow_imports = "skip"
+follow_imports_for_stubs = true
 
 [tool.vulture]
 # Dead-code finder. Run via: ``uv run vulture src``. Tests are excluded
@@ -167,10 +184,20 @@ testpaths = [
 timeout = 60
 timeout_method = "thread"
 addopts = "--import-mode=importlib --cov=src/lighthill --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=78 -n auto --dist=loadscope"
+# Repo root on the path so the real_sim tests can import the standalone
+# `sim_validation` scenario package.
+pythonpath = ["."]
 
-# Custom marker pattern. Uncomment when you have tests that need real GPU /
-# Isaac Sim and should be opt-in rather than run in CI:
-#
-# markers = [
-#     "real_sim: requires a real Isaac Sim + GPU. Skipped without LIGHTHILL_REAL_SIM_OK=1.",
-# ]
+# Real-Isaac tests are opt-in (need Isaac Sim + GPU); skipped in CI and on the
+# laptop CPU gate unless LIGHTHILL_REAL_SIM_OK=1.
+markers = [
+    "real_sim: requires a real Isaac Sim + GPU. Skipped without LIGHTHILL_REAL_SIM_OK=1.",
+]
+
+[tool.coverage.run]
+# apply_isaac.py imports isaaclab and only runs inside Isaac (validated by the
+# real_sim in-sim suite, not unit coverage); it cannot be imported on the CPU
+# gate, so exclude it from coverage to keep the laptop/CI measurement honest.
+omit = [
+    "src/lighthill/apply_isaac.py",
+]
