@@ -7,6 +7,7 @@ from torch import Tensor
 
 
 class AccelerationFilter:
+    """Finite-difference + low-pass body-acceleration estimator over [E, B, 6] twists."""
     def __init__(self, shape: tuple[int, ...], alpha: float = 0.08) -> None:
         self.alpha = alpha
         self._shape = shape

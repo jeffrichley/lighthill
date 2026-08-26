@@ -1,7 +1,8 @@
 """The articulation interface apply.py depends on, plus a CPU fake for tests.
 
 The real Isaac Lab adapter (apply_isaac.py) implements this Protocol; the fake
-lets all assembly logic be tested without Isaac installed."""
+lets all assembly logic be tested without Isaac installed.
+"""
 
 from __future__ import annotations
 
@@ -47,18 +48,23 @@ class FakeArticulation:
         self.inertia_diag = torch.ones(num_envs, num_bodies, 3)
 
     def body_states(self) -> tuple[Tensor, Tensor, Tensor]:
+        """Return the fake (pos, quat, twist)."""
         return self._pos, self._quat, self._vel
 
     def set_external_wrench(self, wrench_world: Tensor) -> None:
+        """Record the wrench for assertions."""
         self.last_wrench = wrench_world.clone()
 
     def set_body_inertias(self, mass: Tensor, inertia_diag: Tensor) -> None:
+        """Record the effective mass and inertia for assertions."""
         self.mass = mass.clone()
         self.inertia_diag = inertia_diag.clone()
 
     # test helpers
     def set_body_velocity(self, vel: Tensor) -> None:
+        """Test helper: overwrite body twists."""
         self._vel = vel.clone()
 
     def set_body_quat(self, quat: Tensor) -> None:
+        """Test helper: overwrite body quaternions."""
         self._quat = quat.clone()

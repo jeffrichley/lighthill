@@ -37,8 +37,11 @@ class AddedMassSpec:
 
 @dataclass(frozen=True)
 class LiftSpec:
-    """Ellipsoid Kutta + Magnus lift geometry for a link. Semi-axes are the equivalent
-    ellipsoid half-lengths (all > 0); coefficients follow MuJoCo's fluidcoef defaults."""
+    """Ellipsoid Kutta + Magnus lift geometry for a link.
+
+    Semi-axes are the equivalent ellipsoid half-lengths (all > 0); coefficients
+    follow MuJoCo's fluidcoef defaults.
+    """
 
     semi_axes: tuple[float, float, float]
     c_kutta: float = 1.0

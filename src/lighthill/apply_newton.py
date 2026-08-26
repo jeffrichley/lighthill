@@ -1,5 +1,7 @@
-"""Newton (Isaac Lab 3.0) adapter: implements the `ArticulationView` Protocol over an
-``isaaclab_newton`` Articulation / RigidObject. Newton-only (needs Isaac Lab 3.0 + Newton).
+"""Newton (Isaac Lab 3.0) adapter for the `ArticulationView` Protocol.
+
+Implements the Protocol over an ``isaaclab_newton`` Articulation / RigidObject.
+Newton-only (needs Isaac Lab 3.0 + Newton).
 
 This is the sibling of ``apply_isaac.py`` (PhysX). The hydro core is unchanged; only this
 adapter differs, and only in three spots:

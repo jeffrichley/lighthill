@@ -21,6 +21,7 @@ from .inertia import AddedMassRouting, effective_inertia, split_added_mass
 
 
 class UnderwaterHydrodynamics:
+    """Per-step hydrodynamics orchestrator: wrench assembly + inertia routing over an ArticulationView."""
     def __init__(self, view: ArticulationView, coeffs: ResolvedCoefficients, *,
                  current: CurrentField | None = None, alpha: float = 0.08) -> None:
         self.view = view
@@ -68,6 +69,7 @@ class UnderwaterHydrodynamics:
         view.set_body_inertias(m_eff, i_eff)
 
     def reset(self, current_world: Tensor | None = None) -> None:
+        """Reset the acceleration filter and, optionally, the world current field."""
         if current_world is not None:
             self._current_world = current_world.to(self._device)
         else:
@@ -75,6 +77,7 @@ class UnderwaterHydrodynamics:
         self._filter.reset()
 
     def compute_wrench(self, dt: float) -> Tensor:
+        """Assemble the total per-link hydrodynamic wrench [E, B, 6] for this step."""
         _pos, quat, twist = self.view.body_states()  # [E,B,*]
         cur = self._current_world.unsqueeze(1).expand(-1, self.view.num_bodies, -1)
         v_rel = relative_velocity(twist, quat, cur)
@@ -87,6 +90,7 @@ class UnderwaterHydrodynamics:
         return buoy + drag + cor + resid + lift
 
     def apply(self, dt: float) -> None:
+        """Compute the wrench and write it (plus effective inertia) to the articulation."""
         w_body = self.compute_wrench(dt)
         quat = self.view.body_states()[1]
         R = quat_to_rotation_matrix(quat)  # [E,B,3,3]

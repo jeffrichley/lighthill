@@ -64,7 +64,8 @@ def added_mass_residual(added_mass_offdiag: Tensor, accel_body: Tensor) -> Tenso
 def _ellipsoid_projected_area(u_hat: Tensor, semi_axes: Tensor) -> Tensor:
     """Area of the ellipsoid's shadow on the plane normal to unit vector u_hat [...,1].
 
-    MuJoCo's ellipsoid lemma: A = pi*sqrt(sum r_j^4 r_k^4 u_i^2 / sum r_j^2 r_k^2 u_i^2)."""
+    MuJoCo's ellipsoid lemma: A = pi*sqrt(sum r_j^4 r_k^4 u_i^2 / sum r_j^2 r_k^2 u_i^2).
+    """
     rx2, ry2, rz2 = (semi_axes[..., i] ** 2 for i in range(3))
     ux2, uy2, uz2 = (u_hat[..., i] ** 2 for i in range(3))
     num = ry2 * rz2 * (ry2 * rz2) * ux2 + rz2 * rx2 * (rz2 * rx2) * uy2 + rx2 * ry2 * (rx2 * ry2) * uz2
@@ -82,7 +83,8 @@ def lift_wrench(v_rel_body: Tensor, semi_axes: Tensor, c_kutta: Tensor, c_magnus
     with surface normal n_s = ((ry rz/rx) vx, (rz rx/ry) vy, (rx ry/rz) vz), volume
     V = 4/3 pi rx ry rz, and A_proj the projected area normal to v. Kutta vanishes for a
     sphere (n_hat == v_hat) and at zero angle of attack; both vanish at zero speed. Links
-    with zero coefficients contribute nothing, so lift is opt-in per link."""
+    with zero coefficients contribute nothing, so lift is opt-in per link.
+    """
     v = v_rel_body[..., 0:3]      # linear velocity relative to the fluid, body frame
     omega = v_rel_body[..., 3:6]  # angular velocity, body frame
     rx, ry, rz = semi_axes[..., 0], semi_axes[..., 1], semi_axes[..., 2]

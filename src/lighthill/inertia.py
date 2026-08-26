@@ -10,12 +10,14 @@ from torch import Tensor
 
 @dataclass
 class AddedMassRouting:
+    """How a 6x6 added-mass matrix is routed: isotropic mass bump, inertia bump, off-diagonal residual."""
     mass_bump: Tensor      # [N] isotropic scalar mass addition
     inertia_bump: Tensor   # [N,3] principal inertia addition
     residual: Tensor       # [N,6,6] anisotropic linear remainder + off-diagonal
 
 
 def split_added_mass(added_mass: Tensor) -> AddedMassRouting:
+    """Split [N, 6, 6] added mass into mass/inertia bumps plus the off-diagonal residual."""
     diag = torch.diagonal(added_mass, dim1=-2, dim2=-1)  # [N,6]
     lin_diag = diag[:, 0:3]
     ang_diag = diag[:, 3:6]
@@ -34,4 +36,5 @@ def split_added_mass(added_mass: Tensor) -> AddedMassRouting:
 
 def effective_inertia(rigid_mass: Tensor, rigid_inertia: Tensor,
                       routing: AddedMassRouting) -> tuple[Tensor, Tensor]:
+    """Return rigid mass/inertia with the routed added-mass bumps applied."""
     return rigid_mass + routing.mass_bump, rigid_inertia + routing.inertia_bump
