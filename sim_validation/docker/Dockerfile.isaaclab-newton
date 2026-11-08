@@ -10,7 +10,7 @@
 #           'cd /opt/IsaacLab && ./isaaclab.sh -p /work/sim_validation/newton_smoke.py \
 #            --task Isaac-Cartpole-Direct --num_envs 16 --headless --visualizer none \
 #            env.sim.physics=newton_mjwarp'
-FROM nvidia/cuda:12.9.2-devel-ubuntu22.04
+FROM nvidia/cuda:13.5.0-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git curl build-essential cmake ca-certificates && rm -rf /var/lib/apt/lists/*
