@@ -8,7 +8,8 @@ What it does each step: drive a traveling-wave CPG on the yaw joints, apply the 
 per-link hydro (drag + added mass; buoyancy off, gravity off), step Newton, and time it. It is
 a THROUGHPUT probe, not a physics/locomotion validation.
 
-Run (in the isaaclab-newton container):
+Run (in the anguilla sim image, anguilla-sim:3.8.1 from anguilla docker/Dockerfile, with this
+repo mounted: docker run --rm --gpus all -v "$PWD:/work" -w /work anguilla-sim:3.8.1 ...):
   PYTHONPATH=/work/src /opt/IsaacLab/isaaclab.sh -p /work/sim_validation/snake_bench.py \
       --physics newton_mjwarp --headless --visualizer none --num_envs 256 --links 10 --steps 300
 """

@@ -4,8 +4,9 @@ Proof that Isaac Lab runs a physics sim on the Newton (MJWarp) backend, headless
 and kit-less (no Isaac Sim). Mirrors zero_agent's launcher setup but prints per-step output
 and force-exits (Isaac-style teardown can hang).
 
-Run (inside the isaaclab-newton container):
-  ./isaaclab.sh -p /work/sim_validation/newton_smoke.py \
+Run (in the anguilla sim image, anguilla-sim:3.8.1 from anguilla docker/Dockerfile, with this
+repo mounted: docker run --rm --gpus all -v "$PWD:/work" -w /work anguilla-sim:3.8.1 ...):
+  /opt/IsaacLab/isaaclab.sh -p /work/sim_validation/newton_smoke.py \
       --task Isaac-Cartpole-Direct --num_envs 16 --headless --visualizer none \
       env.sim.physics=newton_mjwarp
 """

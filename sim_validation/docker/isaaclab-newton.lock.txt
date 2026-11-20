@@ -1,3 +1,5 @@
+# RETIRED 2026-11-20 -> use anguilla docker/Dockerfile (anguilla 15e78fc); the Wheat .sif will
+# be converted from that image. Kept until that .sif swap, then deleted (phd-lab decision 22).
 
 ==========
 == CUDA ==
