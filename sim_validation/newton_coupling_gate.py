@@ -18,7 +18,8 @@ independent known-good measurement; a reset re-zeroes the articulation between t
                      analytical Featherstone reference (~2.709 deg) within 15% -- the same
                      tolerance and reference the PhysX gate FAILS. **Do not loosen to pass.**
 
-Run (in the isaaclab-newton container, lighthill on PYTHONPATH):
+Run (in the anguilla sim image, anguilla-sim:3.8.1 from anguilla docker/Dockerfile, with this
+repo mounted: docker run --rm --gpus all -v "$PWD:/work" -w /work anguilla-sim:3.8.1 ...):
   PYTHONPATH=/work/src /opt/IsaacLab/isaaclab.sh -p /work/sim_validation/newton_coupling_gate.py \
       --physics newton_mjwarp --headless --visualizer none
 """

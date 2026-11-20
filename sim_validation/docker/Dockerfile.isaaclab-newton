@@ -1,3 +1,6 @@
+# RETIRED 2026-11-20 -> use anguilla docker/Dockerfile (anguilla 15e78fc); the Wheat .sif will
+# be converted from that image. Kept until that .sif swap, then deleted (phd-lab decision 22).
+#
 # Full Isaac Lab (develop / 3.0-beta) + Newton (MJWarp) backend, headless / kit-less.
 # No Isaac Sim needed when the Omniverse visualizer is not used -> runs on a plain
 # CUDA container, incl. Windows hosts via Docker Desktop + the nvidia runtime.

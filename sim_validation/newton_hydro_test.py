@@ -7,8 +7,9 @@ inertia write (set_body_inertias at init), state read (body_states each step), a
 are the first N links of the bluerov config, so this validates PLUMBING (no errors, forces
 transmitted, sim steps), not UVMS physics -- that comes with the dedicated Newton scene.
 
-Run (in the isaaclab-newton container, lighthill on PYTHONPATH):
-  PYTHONPATH=/work/src ./isaaclab.sh -p /work/sim_validation/newton_hydro_test.py \
+Run (in the anguilla sim image, anguilla-sim:3.8.1 from anguilla docker/Dockerfile, with this
+repo mounted: docker run --rm --gpus all -v "$PWD:/work" -w /work anguilla-sim:3.8.1 ...):
+  PYTHONPATH=/work/src /opt/IsaacLab/isaaclab.sh -p /work/sim_validation/newton_hydro_test.py \
       --task Isaac-Cartpole-Direct --num_envs 4 --headless --visualizer none \
       env.sim.physics=newton_mjwarp
 """

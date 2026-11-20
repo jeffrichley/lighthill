@@ -1,6 +1,9 @@
 Bootstrap: docker
 From: nvidia/cuda:12.8.0-devel-ubuntu22.04
 
+# RETIRED 2026-11-20 -> use anguilla docker/Dockerfile (anguilla 15e78fc); the Wheat .sif will
+# be converted from that image. Kept until that .sif swap, then deleted (phd-lab decision 22).
+#
 # Apptainer image for the kit-less Isaac Lab Newton (MJWarp) backend, headless.
 # Rebuilds the validated `isaaclab-newton` Docker image on HPC (no official NGC
 # container exists for this path). Pins the EXACT versions from the built image
