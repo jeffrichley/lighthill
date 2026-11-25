@@ -44,7 +44,7 @@ jobs:
           gh release upload "$TAG" dist/*.whl dist/*.tar.gz --clobber
 
       - name: Upload dist as workflow artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/*
@@ -64,7 +64,7 @@ jobs:
       id-token: write
     steps:
       - name: Download dist from workflow artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
